@@ -1,9 +1,16 @@
-/// FragGeneScanRs executable
+//! FragGeneScanRs executable
+#![allow(non_snake_case)]
+
+use std::path::PathBuf;
+use std::error::Error;
 
 extern crate clap;
 use clap::{Arg, App};
 
-fn main() {
+extern crate frag_gene_scan_rs;
+use frag_gene_scan_rs::hmm;
+
+fn main() -> Result<(), Box<dyn Error>> {
 	let matches = App::new("FragGeneScanRs")
 		.version("0.0.1")
 		.author("Felix Van der Jeugt <felix.vanderjeugt@ugent.be>")
@@ -82,4 +89,11 @@ fn main() {
 			.default_value("11")
 			.help("Which translation table to use."))
 		.get_matches();
+
+	let (hmm, train) = hmm::get_train_from_file(
+		PathBuf::from(matches.value_of("train-dir").unwrap_or("train")),
+		PathBuf::from(matches.value_of("train-file").unwrap())
+	)?;
+
+	Ok(())
 }
