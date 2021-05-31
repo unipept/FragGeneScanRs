@@ -90,7 +90,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     		.help("Which translation table to use."))
     	.get_matches();
 
-    let (hmm, train) = hmm::get_train_from_file(
+    let (_hmm, _train) = hmm::get_train_from_file(
         PathBuf::from(matches.value_of("train-dir").unwrap_or("train")),
         PathBuf::from(matches.value_of("train-file").unwrap()),
     )?;
