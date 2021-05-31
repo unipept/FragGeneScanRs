@@ -1,11 +1,19 @@
 //! FragGeneScanRs executable
 #![allow(non_snake_case)]
 
+use std::borrow::Cow;
+use std::cmp::{max, min};
 use std::error::Error;
+use std::io;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 
 extern crate clap;
 use clap::{App, Arg};
+
+extern crate seq_io;
+use seq_io::fasta;
+use seq_io::policy::StdPolicy;
 
 extern crate frag_gene_scan_rs;
 use frag_gene_scan_rs::hmm;
@@ -49,51 +57,97 @@ fn main() -> Result<(), Box<dyn Error>> {
 [illumina_1] for Illumina sequencing reads with about 0.1% error rate
 [illumina_5] for Illumina sequencing reads with about 0.5% error rate
 [illumina_10] for Illumina sequencing reads with about 1% error rate"))
-    	.arg(Arg::with_name("train-file-dir")
-    		.short("r")
-    		.long("train-file-dir")
-    		.value_name("train_file_dir")
-    		.takes_value(true)
-    		.help("Full path of the directory containing the training model files."))
-    	.arg(Arg::with_name("thread-num")
-    		.short("p")
-    		.long("thread-num")
-    		.value_name("thread_num")
-    		.takes_value(true)
-    		.default_value("1")
-    		.help("The number of threads used by FragGeneScan++."))
-    	.arg(Arg::with_name("metadata-file")
-    		.short("e")
-    		.long("metadata-file")
-    		.value_name("metadata_file")
-    		.takes_value(true)
-    		.help("Output metadata for sequences."))
-    	.arg(Arg::with_name("dna-file")
-    		.short("d")
-    		.long("dna-file")
-    		.value_name("dna_file")
-    		.takes_value(true)
-    		.help("Output predicted DNA reads."))
-    	.arg(Arg::with_name("chunk-size")
-    		.short("c")
-    		.long("chunk-size")
-    		.value_name("chunk_size")
-    		.takes_value(true)
-    		.default_value("1")
-    		.help("Number of sequences in a chunk, scales speed and memory usage."))
-    	.arg(Arg::with_name("translation-table")
-    		.short("x")
-    		.long("translation-table")
-    		.value_name("translation_table")
-    		.takes_value(true)
-    		.default_value("11")
-    		.help("Which translation table to use."))
-    	.get_matches();
+        .arg(Arg::with_name("train-file-dir")
+            .short("r")
+            .long("train-file-dir")
+            .value_name("train_file_dir")
+            .takes_value(true)
+            .help("Full path of the directory containing the training model files."))
+        .arg(Arg::with_name("thread-num")
+            .short("p")
+            .long("thread-num")
+            .value_name("thread_num")
+            .takes_value(true)
+            .default_value("1")
+            .help("The number of threads used by FragGeneScan++."))
+        .arg(Arg::with_name("metadata-file")
+            .short("e")
+            .long("metadata-file")
+            .value_name("metadata_file")
+            .takes_value(true)
+            .help("Output metadata for sequences."))
+        .arg(Arg::with_name("dna-file")
+            .short("d")
+            .long("dna-file")
+            .value_name("dna_file")
+            .takes_value(true)
+            .help("Output predicted DNA reads."))
+        .arg(Arg::with_name("chunk-size")
+            .short("c")
+            .long("chunk-size")
+            .value_name("chunk_size")
+            .takes_value(true)
+            .default_value("1")
+            .help("Number of sequences in a chunk, scales speed and memory usage."))
+        .arg(Arg::with_name("translation-table")
+            .short("x")
+            .long("translation-table")
+            .value_name("translation_table")
+            .takes_value(true)
+            .default_value("11")
+            .help("Which translation table to use."))
+        .get_matches();
 
-    let (_hmm, _train) = hmm::get_train_from_file(
+    let (hmmGlobal, train) = hmm::get_train_from_file(
         PathBuf::from(matches.value_of("train-dir").unwrap_or("train")),
         PathBuf::from(matches.value_of("train-file").unwrap()),
     )?;
 
+    // thread_data_init in run_hmm.c
+    // writeOutputFiles in run_hmm.c
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    run(
+        hmmGlobal,
+        train,
+        &mut fasta::Reader::new(stdin.lock()),
+        &mut stdout.lock(),
+    )?;
+
+    Ok(())
+}
+
+fn run<R: Read, W: Write>(
+    hmmGlobal: Box<hmm::HmmGlobal>,
+    train: Vec<hmm::Train>,
+    inputseqs: &mut fasta::Reader<R, StdPolicy>,
+    outputstream: &mut W,
+) -> Result<(), Box<dyn Error>> {
+    while let Some(record) = inputseqs.next() {
+        let record = record?;
+        viterbi(&hmmGlobal, &train, record, outputstream);
+    }
+    Ok(())
+}
+
+fn count_cg_content(seq: &[u8]) -> usize {
+    let mut count = 0;
+    for l in seq.iter() {
+        if b"CcGg".contains(l) {
+            count += 1;
+        }
+    }
+    min(43, max(0, count * 100 / seq.len() - 26))
+}
+
+fn viterbi<W: Write>(
+    hmmGlobal: &hmm::HmmGlobal,
+    train: &Vec<hmm::Train>,
+    record: fasta::RefRecord,
+    outputstream: &mut W,
+) -> Result<(), Box<dyn Error>> {
+    let seq = record.full_seq();
+    let cg = count_cg_content(&seq);
+    record.write_unchanged(&mut *outputstream)?; // TODO
     Ok(())
 }
