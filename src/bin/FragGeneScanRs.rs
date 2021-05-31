@@ -1,7 +1,6 @@
 //! FragGeneScanRs executable
 #![allow(non_snake_case)]
 
-use std::borrow::Cow;
 use std::cmp::{max, min};
 use std::error::Error;
 use std::io;
@@ -98,7 +97,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .help("Which translation table to use."))
         .get_matches();
 
-    let (hmmGlobal, train) = hmm::get_train_from_file(
+    let (global, locals) = hmm::get_train_from_file(
         PathBuf::from(matches.value_of("train-dir").unwrap_or("train")),
         PathBuf::from(matches.value_of("train-file").unwrap()),
     )?;
@@ -108,8 +107,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let stdin = io::stdin();
     let stdout = io::stdout();
     run(
-        hmmGlobal,
-        train,
+        global,
+        locals,
         &mut fasta::Reader::new(stdin.lock()),
         &mut stdout.lock(),
     )?;
@@ -118,14 +117,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run<R: Read, W: Write>(
-    hmmGlobal: Box<hmm::HmmGlobal>,
-    train: Vec<hmm::Train>,
+    global: Box<hmm::Global>,
+    locals: Vec<hmm::Local>,
     inputseqs: &mut fasta::Reader<R, StdPolicy>,
     outputstream: &mut W,
 ) -> Result<(), Box<dyn Error>> {
     while let Some(record) = inputseqs.next() {
         let record = record?;
-        viterbi(&hmmGlobal, &train, record, outputstream);
+        viterbi(&global, &locals, record, outputstream)?;
     }
     Ok(())
 }
@@ -141,13 +140,13 @@ fn count_cg_content(seq: &[u8]) -> usize {
 }
 
 fn viterbi<W: Write>(
-    hmmGlobal: &hmm::HmmGlobal,
-    train: &Vec<hmm::Train>,
+    _global: &hmm::Global,
+    _locals: &Vec<hmm::Local>,
     record: fasta::RefRecord,
     outputstream: &mut W,
 ) -> Result<(), Box<dyn Error>> {
     let seq = record.full_seq();
-    let cg = count_cg_content(&seq);
+    let _cg = count_cg_content(&seq);
     record.write_unchanged(&mut *outputstream)?; // TODO
     Ok(())
 }
