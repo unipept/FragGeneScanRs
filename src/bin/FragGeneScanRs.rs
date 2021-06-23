@@ -139,7 +139,7 @@ fn count_cg_content(seq: &[u8]) -> usize {
             count += 1;
         }
     }
-    min(43, max(0, count * 100 / seq.len() - 26))
+    min(43, max(26, count * 100 / seq.len()) - 26)
 }
 
 fn viterbi<W: Write>(
@@ -161,6 +161,7 @@ fn viterbi<W: Write>(
 
     for _ in 0..seq.len() {
         alpha.push([0.0; hmm::NUM_STATE]);
+        path.push([hmm::NOSTATE; hmm::NUM_STATE]);
     }
     alpha[0].copy_from_slice(&global.pi);
     for i in &mut alpha[0] {
@@ -249,7 +250,7 @@ fn viterbi<W: Write>(
                         if !whole_genome {
                             for j in (hmm::M1_STATE..=hmm::M5_STATE).rev() {
                                 let num_d = if j >= i {
-                                    (i - j + 6) as i32
+                                    (i + 6 - j) as i32
                                 } else if j + 1 < i {
                                     (i - j) as i32
                                 } else {
@@ -285,7 +286,7 @@ fn viterbi<W: Write>(
                         if !whole_genome {
                             for j in (hmm::M1_STATE..=hmm::M6_STATE).rev() {
                                 let num_d = if j >= i {
-                                    (i - j + 6) as i32
+                                    (i + 6 - j) as i32
                                 } else if j + 1 < i {
                                     (i - j) as i32
                                 } else {
@@ -310,21 +311,20 @@ fn viterbi<W: Write>(
                     let j = if i == hmm::M1_STATE {
                         hmm::I6_STATE
                     } else {
-                        hmm::I6_STATE + (i - hmm::M1_STATE - 1)
+                        hmm::I1_STATE + (i - hmm::M1_STATE - 1)
                     };
 
                     // to avoid stop codon
                     if t < 2 {
                     } else if (i == hmm::M2_STATE || i == hmm::M5_STATE)
-                        && (seq[temp_i[j - hmm::I1_STATE]] == b'T')
-                        && (
-                            (seq[t] == b'A' && seq[t + 1] == b'A') // TODO check t border?
-                                   || (seq[t] == b'A' && seq[t + 1] == b'G') // TODO check t border?
-                                   || (seq[t] == b'G' && seq[t + 1] == b'A')
-                            // TODO check t border?
-                        )
+                        && t + 1 < seq.len()
+                        && seq[temp_i[j - hmm::I1_STATE]] == b'T'
+                        && ((seq[t] == b'A' && seq[t + 1] == b'A')
+                            || (seq[t] == b'A' && seq[t + 1] == b'G')
+                            || (seq[t] == b'G' && seq[t + 1] == b'A'))
                     {
                     } else if (i == hmm::M3_STATE || i == hmm::M6_STATE)
+                        && temp_i[j - hmm::I1_STATE] > 0
                         && (seq[temp_i[j - hmm::I1_STATE] - 1] == b'T')
                         && ((seq[temp_i[j - hmm::I1_STATE]] == b'A' && seq[t] == b'A')
                             || (seq[temp_i[j - hmm::I1_STATE]] == b'A' && seq[t] == b'G')
@@ -394,7 +394,7 @@ fn viterbi<W: Write>(
                         if !whole_genome {
                             for j in (hmm::M1_STATE_1..=hmm::M5_STATE_1).rev() {
                                 let num_d = if j >= i {
-                                    (i - j + 6) as i32
+                                    (i + 6 - j) as i32
                                 } else if j + 1 < i {
                                     (i - j) as i32
                                 } else {
@@ -424,7 +424,7 @@ fn viterbi<W: Write>(
                         if !whole_genome {
                             for j in (hmm::M1_STATE_1..=hmm::M6_STATE_1).rev() {
                                 let num_d = if j >= i {
-                                    (i - j + 6) as i32
+                                    (i + 6 - j) as i32
                                 } else if j + 1 < i {
                                     (i - j) as i32
                                 } else {
@@ -456,15 +456,15 @@ fn viterbi<W: Write>(
                     // to avoid stop codon
                     if t < 2 {
                     } else if (i == hmm::M2_STATE_1 || i == hmm::M5_STATE_1)
-                               && (seq[t + 1] == b'A') // TODO check t border?
-                               && (
-                                      (seq[t] == b'T' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T')
-                                   || (seq[t] == b'T' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'C')
-                                   || (seq[t] == b'A' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T')
-                                  )
+                        && t + 1 < seq.len()
+                        && seq[t + 1] == b'A'
+                        && ((seq[t] == b'T' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T')
+                            || (seq[t] == b'T' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'C')
+                            || (seq[t] == b'A' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T'))
                     {
                     } else if (i == hmm::M3_STATE_1 || i == hmm::M6_STATE_1)
-                        && (seq[t] == b'A')
+                        && seq[t] == b'A'
+                        && temp_i_1[j - hmm::I1_STATE_1] > 1
                         && ((seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T'
                             && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == b'T')
                             || (seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T'
@@ -492,9 +492,9 @@ fn viterbi<W: Write>(
                 path[t][i] = i;
 
                 // from M state
-                if path[t - 3][hmm::S_STATE_1] != hmm::R_STATE
-                    && path[t - 4][hmm::S_STATE_1] != hmm::R_STATE
-                    && path[t - 5][hmm::S_STATE_1] != hmm::R_STATE
+                if (t < 3 || path[t - 3][hmm::S_STATE_1] != hmm::R_STATE)
+                    && (t < 4 || path[t - 4][hmm::S_STATE_1] != hmm::R_STATE)
+                    && (t < 5 || path[t - 5][hmm::S_STATE_1] != hmm::R_STATE)
                 {
                     let temp_alpha = alpha[t - 1][i - hmm::I1_STATE_1 + hmm::M1_STATE_1]
                         - global.tr[hmm::TR_MI]
@@ -537,7 +537,7 @@ fn viterbi<W: Write>(
         }
 
         // end state
-        if alpha[hmm::E_STATE][t] == 0.0 {
+        if alpha[t][hmm::E_STATE] == 0.0 {
             // TODO could it ever not be?
             alpha[t][hmm::E_STATE] = f64::INFINITY;
             path[t][hmm::E_STATE] = hmm::NOSTATE;
@@ -564,17 +564,17 @@ fn viterbi<W: Write>(
                     path[t][hmm::E_STATE] = hmm::M3_STATE;
                 }
 
-                alpha[hmm::E_STATE][t] = f64::INFINITY;
-                alpha[hmm::E_STATE][t + 1] = f64::INFINITY;
-                path[hmm::E_STATE][t + 1] = hmm::E_STATE;
-                path[hmm::E_STATE][t + 2] = hmm::E_STATE;
+                alpha[t][hmm::E_STATE] = f64::INFINITY;
+                alpha[t + 1][hmm::E_STATE] = f64::INFINITY;
+                path[t + 1][hmm::E_STATE] = hmm::E_STATE;
+                path[t + 2][hmm::E_STATE] = hmm::E_STATE;
 
-                alpha[hmm::M6_STATE][t + 2] = f64::INFINITY;
-                alpha[hmm::M5_STATE][t + 1] = f64::INFINITY;
-                alpha[hmm::M4_STATE][t] = f64::INFINITY;
-                alpha[hmm::M3_STATE][t + 2] = f64::INFINITY;
-                alpha[hmm::M2_STATE][t + 1] = f64::INFINITY;
-                alpha[hmm::M1_STATE][t] = f64::INFINITY;
+                alpha[t + 2][hmm::M6_STATE] = f64::INFINITY;
+                alpha[t + 1][hmm::M5_STATE] = f64::INFINITY;
+                alpha[t][hmm::M4_STATE] = f64::INFINITY;
+                alpha[t + 2][hmm::M3_STATE] = f64::INFINITY;
+                alpha[t + 1][hmm::M2_STATE] = f64::INFINITY;
+                alpha[t][hmm::M1_STATE] = f64::INFINITY;
 
                 alpha[t + 2][hmm::E_STATE] -= if seq[t + 1] == b'A' && seq[t + 2] == b'A' {
                     0.54_f64.ln()
@@ -594,14 +594,14 @@ fn viterbi<W: Write>(
                     // bug reported by Yu-Wei ------ TODO 60 is the incomplete minimum length? can be merged?
                     for i in (t - 60)..=(t - 3) {
                         if i + 2 < seq.len() {
-                            start_freq -= locals[cg].tr_e[i - t + 60]
+                            start_freq -= locals[cg].tr_e[i + 60 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
-                } else {
+                } else if t > 3 {
                     for i in 0..=(t - 3) {
                         if i + 2 < seq.len() {
-                            sub_sum += locals[cg].tr_e[i - t + 60]
+                            sub_sum += locals[cg].tr_e[i + 60 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
@@ -739,14 +739,14 @@ fn viterbi<W: Write>(
                     // TODO why 30?
                     for i in (t - 30)..=(t + 30) {
                         if i + 2 < seq.len() {
-                            start_freq -= locals[cg].tr_s[i - t + 30]
+                            start_freq -= locals[cg].tr_s[i + 30 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                 } else {
                     for i in 0..=(t + 30) {
                         if i + 2 < seq.len() {
-                            sub_sum += locals[cg].tr_s[i - t + 30]
+                            sub_sum += locals[cg].tr_s[i + 30 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
@@ -805,14 +805,14 @@ fn viterbi<W: Write>(
                 if t >= 30 {
                     for i in (t - 30)..=(t + 30) {
                         if i + 2 < seq.len() {
-                            start_freq -= locals[cg].tr_e1[i - t + 30]
+                            start_freq -= locals[cg].tr_e1[i + 30 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                 } else {
                     for i in 0..=(t + 30) {
                         if i + 2 < seq.len() {
-                            sub_sum += locals[cg].tr_e1[i - t + 30]
+                            sub_sum += locals[cg].tr_e1[i + 30 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
@@ -1081,7 +1081,7 @@ fn viterbi<W: Write>(
         } else if codon_start != 0
             && ((vpath[t] >= hmm::M1_STATE && vpath[t] <= hmm::M6_STATE)
                 || (vpath[t] >= hmm::M1_STATE_1 && vpath[t] <= hmm::M6_STATE_1))
-            && vpath[t] - prev_match < 6
+            && vpath[t] < prev_match + 6
         {
             let out_nt = if vpath[t] < prev_match {
                 vpath[t] + 6 - prev_match
