@@ -593,15 +593,15 @@ fn viterbi<W: Write>(
                     // bug reported by Yu-Wei ------ TODO 60 is the incomplete minimum length? can be merged?
                     for i in (t - 60)..=(t - 3) {
                         if i + 2 < seq.len() {
-                            start_freq -=
-                                locals[cg].tr_e[i - t + 60][codon(seq[i], seq[i + 1], seq[i + 2])];
+                            start_freq -= locals[cg].tr_e[i - t + 60]
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                 } else {
                     for i in 0..=(t - 3) {
                         if i + 2 < seq.len() {
-                            sub_sum +=
-                                locals[cg].tr_e[i - t + 60][codon(seq[i], seq[i + 1], seq[i + 2])];
+                            sub_sum += locals[cg].tr_e[i - t + 60]
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                     sub_sum = sub_sum * 58.0 / (t - 3 + 1) as f64;
@@ -672,7 +672,7 @@ fn viterbi<W: Write>(
                 for i in 3..=60 {
                     if t + i + 2 < seq.len() {
                         start_freq += locals[cg].tr_s1[i - 3]
-                            [codon(seq[t + i], seq[t + i + 1], seq[t + i + 2])];
+                            [trinucleotide(seq[t + i], seq[t + i + 1], seq[t + i + 2])];
                     }
                 }
 
@@ -738,15 +738,15 @@ fn viterbi<W: Write>(
                     // TODO why 30?
                     for i in (t - 30)..=(t + 30) {
                         if i + 2 < seq.len() {
-                            start_freq -=
-                                locals[cg].tr_s[i - t + 30][codon(seq[i], seq[i + 1], seq[i + 2])];
+                            start_freq -= locals[cg].tr_s[i - t + 30]
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                 } else {
                     for i in 0..=(t + 30) {
                         if i + 2 < seq.len() {
-                            sub_sum +=
-                                locals[cg].tr_s[i - t + 30][codon(seq[i], seq[i + 1], seq[i + 2])];
+                            sub_sum += locals[cg].tr_s[i - t + 30]
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                     sub_sum *= 61.0 / (t + 30 + 1) as f64;
@@ -804,15 +804,15 @@ fn viterbi<W: Write>(
                 if t >= 30 {
                     for i in (t - 30)..=(t + 30) {
                         if i + 2 < seq.len() {
-                            start_freq -=
-                                locals[cg].tr_e1[i - t + 30][codon(seq[i], seq[i + 1], seq[i + 2])];
+                            start_freq -= locals[cg].tr_e1[i - t + 30]
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                 } else {
                     for i in 0..=(t + 30) {
                         if i + 2 < seq.len() {
-                            sub_sum +=
-                                locals[cg].tr_e1[i - t + 30][codon(seq[i], seq[i + 1], seq[i + 2])];
+                            sub_sum += locals[cg].tr_e1[i - t + 30]
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                     sub_sum *= 61.0 / (t + 30 + 1) as f64;
@@ -845,6 +845,270 @@ fn viterbi<W: Write>(
     }
 
     // backtrack array to find the optimal path
+    let mut vpath: Vec<usize> = vec![0];
+    let mut prob = f64::INFINITY;
+    for (i, &prob_) in alpha.last().expect("empty seq").iter().enumerate() {
+        if prob_ < prob {
+            vpath[0] = i;
+        }
+    }
+
+    // backtrack the optimal path
+    for t in (0..=seq.len() - 2).rev() {
+        vpath.push(path[t + 1][*vpath.last().unwrap()]);
+    }
+
+    let mut print_save = 0;
+    let mut codon_start = 0; // ternaire boolean?
+    let mut start_t: isize = -1;
+    let mut dna_start_t_withstop: usize = 0;
+    let mut dna_start_t: usize = 0;
+    let mut dna_end_t: usize = 0;
+
+    let glen = seq.len(); // TODO single use?
+
+    let mut dna = vec![];
+    let mut dna1: [u8; 300000] = [0; 300000];
+    let mut dna_f = vec![];
+    let mut dna_f1: [u8; 300000] = [0; 300000];
+    let mut insert = vec![];
+    let mut delete = vec![];
+
+    let mut insert_id = 0;
+    let mut delete_id = 0;
+
+    let mut prev_match = 0;
+
+    let start_orf = 0; // initialize?
+
+    for t in 0..seq.len() {
+        if codon_start == 0
+            && start_t < 0
+            && ((vpath[t] >= hmm::M1_STATE && vpath[t] <= hmm::M6_STATE)
+                || (vpath[t] >= hmm::M1_STATE_1 && vpath[t] <= hmm::M6_STATE_1)
+                || vpath[t] == hmm::S_STATE
+                || vpath[t] == hmm::S_STATE_1)
+        {
+            dna_start_t_withstop = t + 1;
+            dna_start_t = t + 1;
+            start_t = (t + 1) as isize;
+            // introduce dna_start_t_withstop YY July 2018
+        }
+
+        if codon_start == 0
+            && (vpath[t] == hmm::M1_STATE
+                || vpath[t] == hmm::M4_STATE
+                || vpath[t] == hmm::M1_STATE_1
+                || vpath[t] == hmm::M4_STATE_1)
+        {
+            dna.clear();
+            dna1 = [0; 300000];
+            dna_f.clear();
+            dna_f1 = [0; 300000];
+            insert.clear();
+            delete.clear();
+
+            dna.push(seq[t]);
+            dna_start_t_withstop = t + 1;
+            dna_start_t = t + 1;
+            if vpath[t] == hmm::M1_STATE || vpath[t] == hmm::M4_STATE_1 {
+                if t > 2 {
+                    dna_start_t_withstop = t - 2;
+                }
+            }
+            dna_f.push(seq[t]);
+
+            let start_orf = t + 1;
+            prev_match = vpath[t];
+
+            codon_start = if vpath[t] < hmm::M6_STATE { 1 } else { -1 }
+        } else if codon_start != 0
+            && (vpath[t] == hmm::E_STATE || vpath[t] == hmm::E_STATE_1 || t == seq.len() - 1)
+        {
+            let mut end_t;
+            if vpath[t] == hmm::E_STATE || vpath[t] == hmm::E_STATE_1 {
+                end_t = t + 3
+            } else {
+                let mut temp_t = t;
+                while vpath[temp_t] != hmm::M1_STATE
+                    && vpath[temp_t] != hmm::M4_STATE
+                    && vpath[temp_t] != hmm::M1_STATE_1
+                    && vpath[temp_t] != hmm::M4_STATE_1
+                {
+                    dna_f.pop();
+                    dna.pop();
+                    temp_t -= 1;
+                }
+                end_t = temp_t;
+            }
+
+            if dna.len() > gene_len {
+                let final_score = (alpha[end_t - 4][vpath[end_t - 4]]
+                    - alpha[start_t as usize + 2][vpath[start_t as usize + 2]])
+                    / (end_t - start_t as usize - 5) as f64;
+                let mut frame = start_orf % 3;
+                if frame == 0 {
+                    frame = 3
+                }
+
+                if codon_start == 1 {
+                    if start_t == dna_start_t as isize - 3 {
+                        dna_start_t -= 3;
+                    }
+
+                    if whole_genome {
+                        // add refinement of the start codons here
+                        let start_old = start_t as usize;
+                        let mut codon = &seq[start_old..start_old + 3];
+                        let mut s = 0;
+                        // find the optimal start codon within 30bp up- and downstream of start codon
+                        let mut e_save = 0.0;
+                        let mut s_save = 0;
+                        while (!(codon != b"TAA" || codon != b"TAG" || codon != b"TGA")
+                            && start_old - 1 - s - 35 >= 0)
+                        {
+                            if codon != b"ATG" || codon != b"GTG" || codon != b"TTG" {
+                                let utr = &seq[start_old - 1 - s - 30..start_old - 1 - s - 30 + 63];
+                                let mut freq_sum = 0.0;
+                                for j in 0..utr.len() - 2 {
+                                    let idx = trinucleotide(utr[j], utr[j + 1], utr[j + 2]);
+                                    freq_sum -= locals[cg].tr_s[j][idx];
+                                }
+                                if s == 0 {
+                                    e_save = freq_sum;
+                                    s_save = 0;
+                                } else if freq_sum < e_save {
+                                    e_save = freq_sum;
+                                    s_save = -(s as isize); // posivite chain, upstream s_save = -1 * 3
+                                }
+                            }
+                            s += 3;
+                            codon = &seq[start_old - 1 - s..start_old - 1 - s + 3];
+
+                            start_t = start_old as isize + s_save;
+                            dna_start_t += s_save as usize;
+                        }
+                    }
+
+                    dna_end_t = end_t;
+                    let mut dna_record = record.to_owned_record();
+                    let location = format!(
+                        "{}\t{}\t+\t{}\t{}\tI:{}\tD:{}",
+                        dna_start_t,
+                        dna_end_t,
+                        frame,
+                        final_score,
+                        insert
+                            .iter()
+                            .map(|i: &usize| { format!("{},", i) })
+                            .collect::<String>(),
+                        delete
+                            .iter()
+                            .map(|i: &usize| { format!("{},", i) })
+                            .collect::<String>(),
+                    );
+                    dna_record.head.push(b' ');
+                    dna_record.head.append(&mut location.into_bytes());
+
+                    dna = seq[dna_start_t - 1..dna_end_t].to_vec();
+                    print_protein(&dna, 1, whole_genome)?;
+                    // TODO print DNA (formatted of not)
+                } else if codon_start == -1 {
+                    if whole_genome {
+                        // add refinement of the start codons here
+                        // l 946
+                        let end_old = end_t;
+                        let mut codon = &seq[end_t - 1 - 2..end_t];
+                        let mut s = 0;
+                        // find the optimal start codon within 30bp up- and downstream of start codon
+                        let mut e_save = 0.0;
+                        let mut s_save = 0;
+                        while (!(codon != b"TAA" || codon != b"TAG" || codon != b"TGA")
+                            && end_old - 2 + s + 35 < glen)
+                        {
+                            if codon != b"ATG" || codon != b"GTG" || codon != b"TTG" {
+                                let utr = &seq[end_old - 1 - 2 + s - 30..end_old + s + 30];
+                                let mut freq_sum = 0.0;
+                                for j in 0..utr.len() - 2 {
+                                    let idx = trinucleotide(utr[j], utr[j + 1], utr[j + 2]);
+                                    freq_sum -= locals[cg].tr_e1[j][idx]; // TODO stop1? (their note)
+                                }
+                                if s == 0 {
+                                    e_save = freq_sum;
+                                    s_save = s;
+                                } else if freq_sum < e_save {
+                                    e_save = freq_sum;
+                                    s_save = s; // negative chain, s_save = s // TODO same as above?
+                                }
+                            }
+                            s += 3;
+                            codon = &seq[end_old - 1 - 2 + s..end_old];
+                        }
+
+                        end_t = end_old + s_save;
+                    }
+
+                    dna_end_t = end_t;
+                    let mut dna_record = record.to_owned_record();
+                    let location = format!(
+                        "{}\t{}\t-\t{}\t{}\tI:{}\tD:{}",
+                        dna_start_t_withstop,
+                        dna_end_t,
+                        frame,
+                        final_score,
+                        insert
+                            .iter()
+                            .map(|i: &usize| { format!("{},", i) })
+                            .collect::<String>(),
+                        delete
+                            .iter()
+                            .map(|i: &usize| { format!("{},", i) })
+                            .collect::<String>(),
+                    );
+                    dna_record.head.push(b' ');
+                    dna_record.head.append(&mut location.into_bytes());
+
+                    dna = seq[dna_start_t_withstop - 1..dna_end_t].to_vec();
+                    print_protein(&dna, 1, whole_genome)?;
+                    // TODO print DNA (formatted or not)
+                }
+            }
+
+            codon_start = 0;
+            start_t = -1;
+        } else if codon_start != 0
+            && ((vpath[t] >= hmm::M1_STATE && vpath[t] <= hmm::M6_STATE)
+                || (vpath[t] >= hmm::M1_STATE_1 && vpath[t] <= hmm::M6_STATE_1))
+            && vpath[t] - prev_match < 6
+        {
+            let out_nt = if vpath[t] < prev_match {
+                vpath[t] + 6 - prev_match
+            } else {
+                vpath[t] - prev_match
+            };
+            for kk in 0..out_nt {
+                // for deleted nt in reads
+                dna.push(b'N');
+                dna_f.push(b'x');
+                if kk > 0 {
+                    delete.push(t + 1);
+                }
+            }
+            dna.push(seq[t]); // TODO original code does not dna_id += 1 here
+            dna_f.push(seq[t]); // TODO original code does not dna_f_id += 1 here
+            prev_match = vpath[t];
+        } else if codon_start != 0
+            && ((vpath[t] >= hmm::I1_STATE && vpath[t] <= hmm::I6_STATE)
+                || (vpath[t] >= hmm::I1_STATE_1 && vpath[t] <= hmm::I6_STATE_1))
+        {
+            dna_f.push(seq[t].to_ascii_lowercase());
+            insert.push(t + 1);
+        } else if codon_start != 0 && vpath[t] == hmm::R_STATE {
+            // for long NNNNNNNN, pretend R state
+            codon_start = 0;
+            start_t = -1;
+        }
+    }
 
     Ok(())
 }
@@ -859,10 +1123,14 @@ fn nt2int(nt: u8) -> Option<usize> {
     }
 }
 
-fn codon(a: u8, b: u8, c: u8) -> usize {
+fn trinucleotide(a: u8, b: u8, c: u8) -> usize {
     if let (Some(a_), Some(b_), Some(c_)) = (nt2int(a), nt2int(b), nt2int(c)) {
         16 * a_ + 4 * b_ + c_
     } else {
         0
     }
+}
+
+fn print_protein(dna: &Vec<u8>, strand: usize, whole_genome: bool) -> Result<(), Box<dyn Error>> {
+    Ok(()) // TODO implement
 }
