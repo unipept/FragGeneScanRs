@@ -604,9 +604,7 @@ fn viterbi<W: Write>(
 
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
-                let mut freq_id = 0;
                 let mut sub_sum = 0.0;
-                let mut sub_count = 0.0;
 
                 if t >= 60 {
                     // bug reported by Yu-Wei ------ TODO 60 is the incomplete minimum length? can be merged?
@@ -685,7 +683,6 @@ fn viterbi<W: Write>(
 
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
-                let mut freq_id = 0;
 
                 // TODO needs same 60-edgecase as above?
                 for i in 3..=60 {
@@ -749,9 +746,7 @@ fn viterbi<W: Write>(
 
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
-                let mut freq_id = 0;
                 let mut sub_sum = 0.0;
-                let mut sub_count = 0.0;
 
                 if t >= 30 {
                     // TODO why 30?
@@ -816,9 +811,7 @@ fn viterbi<W: Write>(
 
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
-                let mut freq_id = 0;
                 let mut sub_sum = 0.0;
-                let mut sub_count = 0.0;
 
                 if t >= 30 {
                     for i in (t - 30)..=(t + 30) {
@@ -869,6 +862,7 @@ fn viterbi<W: Write>(
     for (i, &prob_) in alpha.last().expect("empty seq").iter().enumerate() {
         if prob_ < prob {
             vpath[0] = i;
+            prob = prob_;
         }
     }
 
@@ -877,28 +871,23 @@ fn viterbi<W: Write>(
         vpath.push(path[t + 1][*vpath.last().unwrap()]);
     }
 
-    let mut print_save = 0;
     let mut codon_start = 0; // ternaire boolean?
     let mut start_t: isize = -1;
     let mut dna_start_t_withstop: usize = 0;
     let mut dna_start_t: usize = 0;
-    let mut dna_end_t: usize = 0;
 
     let glen = seq.len(); // TODO single use?
 
     let mut dna = vec![];
-    let mut dna1: [u8; 300000] = [0; 300000];
+    let mut _dna1: [u8; 300000] = [0; 300000];
     let mut dna_f = vec![];
-    let mut dna_f1: [u8; 300000] = [0; 300000];
+    let mut _dna_f1: [u8; 300000] = [0; 300000];
     let mut insert = vec![];
     let mut delete = vec![];
 
-    let mut insert_id = 0;
-    let mut delete_id = 0;
-
     let mut prev_match = 0;
 
-    let start_orf = 0; // initialize?
+    let mut start_orf = 0; // initialize?
 
     for t in 0..seq.len() {
         if codon_start == 0
@@ -921,9 +910,9 @@ fn viterbi<W: Write>(
                 || vpath[t] == hmm::M4_STATE_1)
         {
             dna.clear();
-            dna1 = [0; 300000];
+            _dna1 = [0; 300000];
             dna_f.clear();
-            dna_f1 = [0; 300000];
+            _dna_f1 = [0; 300000];
             insert.clear();
             delete.clear();
 
@@ -937,7 +926,7 @@ fn viterbi<W: Write>(
             }
             dna_f.push(seq[t]);
 
-            let start_orf = t + 1;
+            start_orf = t + 1;
             prev_match = vpath[t];
 
             codon_start = if vpath[t] < hmm::M6_STATE { 1 } else { -1 }
@@ -983,8 +972,8 @@ fn viterbi<W: Write>(
                         // find the optimal start codon within 30bp up- and downstream of start codon
                         let mut e_save = 0.0;
                         let mut s_save = 0;
-                        while (!(codon != b"TAA" || codon != b"TAG" || codon != b"TGA")
-                            && start_old - 1 - s - 35 >= 0)
+                        while !(codon != b"TAA" || codon != b"TAG" || codon != b"TGA")
+                            && start_old >= 1 + s + 35
                         {
                             if codon != b"ATG" || codon != b"GTG" || codon != b"TTG" {
                                 let utr = &seq[start_old - 1 - s - 30..start_old - 1 - s - 30 + 63];
@@ -1004,17 +993,16 @@ fn viterbi<W: Write>(
                             s += 3;
                             codon = &seq[start_old - 1 - s..start_old - 1 - s + 3];
 
-                            start_t = start_old as isize + s_save;
+                            // start_t = start_old as isize + s_save; // TODO start_t value is unused
                             dna_start_t += s_save as usize;
                         }
                     }
 
-                    dna_end_t = end_t;
                     let mut dna_record = record.to_owned_record();
                     let location = format!(
                         "{}\t{}\t+\t{}\t{}\tI:{}\tD:{}",
                         dna_start_t,
-                        dna_end_t,
+                        end_t,
                         frame,
                         final_score,
                         insert
@@ -1029,7 +1017,7 @@ fn viterbi<W: Write>(
                     dna_record.head.push(b' ');
                     dna_record.head.append(&mut location.into_bytes());
 
-                    dna = seq[dna_start_t - 1..dna_end_t].to_vec();
+                    dna = seq[dna_start_t - 1..end_t].to_vec();
                     print_protein(&dna, 1, whole_genome)?;
                     // TODO print DNA (formatted of not)
                 } else if codon_start == -1 {
@@ -1042,8 +1030,8 @@ fn viterbi<W: Write>(
                         // find the optimal start codon within 30bp up- and downstream of start codon
                         let mut e_save = 0.0;
                         let mut s_save = 0;
-                        while (!(codon != b"TAA" || codon != b"TAG" || codon != b"TGA")
-                            && end_old - 2 + s + 35 < glen)
+                        while !(codon != b"TAA" || codon != b"TAG" || codon != b"TGA")
+                            && end_old - 2 + s + 35 < glen
                         {
                             if codon != b"ATG" || codon != b"GTG" || codon != b"TTG" {
                                 let utr = &seq[end_old - 1 - 2 + s - 30..end_old + s + 30];
@@ -1067,12 +1055,11 @@ fn viterbi<W: Write>(
                         end_t = end_old + s_save;
                     }
 
-                    dna_end_t = end_t;
                     let mut dna_record = record.to_owned_record();
                     let location = format!(
                         "{}\t{}\t-\t{}\t{}\tI:{}\tD:{}",
                         dna_start_t_withstop,
-                        dna_end_t,
+                        end_t,
                         frame,
                         final_score,
                         insert
@@ -1088,7 +1075,7 @@ fn viterbi<W: Write>(
                     dna_record.head.append(&mut location.into_bytes());
                     dna_record.write(&mut *outputstream)?;
 
-                    dna = seq[dna_start_t_withstop - 1..dna_end_t].to_vec();
+                    dna = seq[dna_start_t_withstop - 1..end_t].to_vec();
                     print_protein(&dna, 1, whole_genome)?;
                     // TODO print DNA (formatted or not)
                 }
@@ -1151,6 +1138,7 @@ fn trinucleotide(a: u8, b: u8, c: u8) -> usize {
     }
 }
 
+#[allow(unused_variables)]
 fn print_protein(dna: &Vec<u8>, strand: usize, whole_genome: bool) -> Result<(), Box<dyn Error>> {
     Ok(()) // TODO implement
 }
