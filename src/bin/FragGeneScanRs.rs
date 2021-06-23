@@ -12,6 +12,7 @@ use clap::{App, Arg};
 
 extern crate seq_io;
 use seq_io::fasta;
+use seq_io::fasta::Record;
 use seq_io::policy::StdPolicy;
 
 extern crate frag_gene_scan_rs;
@@ -1067,6 +1068,7 @@ fn viterbi<W: Write>(
                     );
                     dna_record.head.push(b' ');
                     dna_record.head.append(&mut location.into_bytes());
+                    dna_record.write(&mut *outputstream)?;
 
                     dna = seq[dna_start_t_withstop - 1..dna_end_t].to_vec();
                     print_protein(&dna, 1, whole_genome)?;
