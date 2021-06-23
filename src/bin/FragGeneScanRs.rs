@@ -3,6 +3,7 @@
 
 use std::cmp::{max, min};
 use std::error::Error;
+use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -13,7 +14,6 @@ use clap::{App, Arg};
 extern crate seq_io;
 use seq_io::fasta;
 use seq_io::fasta::Record;
-use seq_io::policy::StdPolicy;
 
 extern crate frag_gene_scan_rs;
 use frag_gene_scan_rs::hmm;
@@ -23,14 +23,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         .version("0.0.1")
         .author("Felix Van der Jeugt <felix.vanderjeugt@ugent.be>")
         .about("Scalable high-throughput short-read open reading frame prediction.")
-        .arg(Arg::with_name("seq-file-name")
+        .arg(Arg::with_name("seq-file")
             .short("s")
             .long("seq-file-name")
             .value_name("seq_file_name")
             .takes_value(true)
             .default_value("stdin")
             .help("Sequence file name including the full path."))
-        .arg(Arg::with_name("output-file-name")
+        .arg(Arg::with_name("output-file")
             .short("o")
             .long("output-file-name")
             .value_name("output_file_name")
@@ -70,9 +70,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             .takes_value(true)
             .default_value("1")
             .help("The number of threads used by FragGeneScan++."))
-        .arg(Arg::with_name("metadata-file")
+        .arg(Arg::with_name("meta-file")
             .short("e")
-            .long("metadata-file")
+            .long("meta-file")
             .value_name("metadata_file")
             .takes_value(true)
             .help("Output metadata for sequences."))
@@ -82,37 +82,51 @@ fn main() -> Result<(), Box<dyn Error>> {
             .value_name("dna_file")
             .takes_value(true)
             .help("Output predicted DNA reads."))
-        .arg(Arg::with_name("chunk-size")
-            .short("c")
-            .long("chunk-size")
-            .value_name("chunk_size")
-            .takes_value(true)
-            .default_value("1")
-            .help("Number of sequences in a chunk, scales speed and memory usage."))
-        .arg(Arg::with_name("translation-table")
-            .short("x")
-            .long("translation-table")
-            .value_name("translation_table")
-            .takes_value(true)
-            .default_value("11")
-            .help("Which translation table to use."))
+        // .arg(Arg::with_name("chunk-size")
+        //     .short("c")
+        //     .long("chunk-size")
+        //     .value_name("chunk_size")
+        //     .takes_value(true)
+        //     .default_value("1")
+        //     .help("Number of sequences in a chunk, scales speed and memory usage."))
+        // .arg(Arg::with_name("translation-table")
+        //     .short("x")
+        //     .long("translation-table")
+        //     .value_name("translation_table")
+        //     .takes_value(true)
+        //     .default_value("11")
+        //     .help("Which translation table to use."))
         .get_matches();
+
+    // thread_data_init in run_hmm.c
+    // writeOutputFiles in run_hmm.c
 
     let (global, locals) = hmm::get_train_from_file(
         PathBuf::from(matches.value_of("train-dir").unwrap_or("train")),
         PathBuf::from(matches.value_of("train-file").unwrap()),
     )?;
 
-    // thread_data_init in run_hmm.c
-    // writeOutputFiles in run_hmm.c
     let stdin = io::stdin();
+    let mut inputseqs: Box<dyn Read> = match matches.value_of("seq-file").unwrap_or("stdin") {
+        "stdin" => Box::new(stdin.lock()),
+        filename => Box::new(File::open(filename)?),
+    };
+
     let stdout = io::stdout();
+    let mut outputseqs: Box<dyn Write> = match matches.value_of("output-file").unwrap_or("stdout") {
+        "stdout" => Box::new(stdout.lock()),
+        filename => Box::new(File::create(filename)?),
+    };
+
     run(
         global,
         locals,
-        &mut fasta::Reader::new(stdin.lock()),
-        &mut stdout.lock(),
+        &mut inputseqs,
+        &mut outputseqs,
         matches.is_present("complete"),
+        usize::from_str_radix(matches.value_of("thread-num").unwrap_or("1"), 10)?,
+        &mut matches.value_of("meta-file").map(File::open).transpose()?,
+        &mut matches.value_of("dna-file").map(File::open).transpose()?,
     )?;
 
     Ok(())
@@ -121,11 +135,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn run<R: Read, W: Write>(
     global: Box<hmm::Global>,
     locals: Vec<hmm::Local>,
-    inputseqs: &mut fasta::Reader<R, StdPolicy>,
+    inputseqs: &mut R,
     outputstream: &mut W,
     whole_genome: bool,
+    _thread_num: usize,
+    _metadata: &mut Option<File>,
+    _dna: &mut Option<File>,
 ) -> Result<(), Box<dyn Error>> {
-    while let Some(record) = inputseqs.next() {
+    let mut sequences = fasta::Reader::new(inputseqs);
+    while let Some(record) = sequences.next() {
         let record = record?;
         viterbi(&global, &locals, record, outputstream, whole_genome)?;
     }
