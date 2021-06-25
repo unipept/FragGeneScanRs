@@ -139,12 +139,29 @@ fn read_transitions(global: &mut Global, filename: PathBuf) -> Result<()> {
     lines
         .next()
         .ok_or(TrainingDataError::IncompleteTrainingFile)??; // Transition header
-    for i in 0..NUM_TRANSITIONS {
+    for _ in 0..NUM_TRANSITIONS {
         line = lines
             .next()
             .ok_or(TrainingDataError::IncompleteTrainingFile)??;
         let v: Vec<&str> = line.split_whitespace().collect();
-        global.tr[i] = f64::from_str(v[1])
+        let l = match v[0] {
+            "MM" => 0,
+            "MI" => 1,
+            "MD" => 2,
+            "II" => 3,
+            "IM" => 4,
+            "DD" => 5,
+            "DM" => 6,
+            "GE" => 7,
+            "GG" => 8,
+            "ER" => 9,
+            "RS" => 10,
+            "RR" => 11,
+            "ES" => 12,
+            "ES1" => 13,
+            _ => Err(TrainingDataError::UnknownTransitionState)?,
+        };
+        global.tr[l] = f64::from_str(v[1])
             .context("Could not read Transition")?
             .ln();
     }
@@ -415,4 +432,6 @@ fn read_pwm(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
 pub enum TrainingDataError {
     #[error("incomplete training file")]
     IncompleteTrainingFile,
+    #[error("unknown transition state")]
+    UnknownTransitionState,
 }

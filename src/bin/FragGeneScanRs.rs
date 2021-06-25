@@ -70,12 +70,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             .takes_value(true)
             .default_value("1")
             .help("The number of threads used by FragGeneScan++."))
-        .arg(Arg::with_name("meta-file")
+        .arg(Arg::with_name("aa-file")
             .short("e")
-            .long("meta-file")
-            .value_name("metadata_file")
+            .long("aa-file")
+            .value_name("aa_file")
             .takes_value(true)
-            .help("Output metadata for sequences."))
+            .help("Output predicted AA reads."))
         .arg(Arg::with_name("dna-file")
             .short("d")
             .long("dna-file")
@@ -125,8 +125,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         &mut outputseqs,
         matches.is_present("complete"),
         usize::from_str_radix(matches.value_of("thread-num").unwrap_or("1"), 10)?,
-        &mut matches.value_of("meta-file").map(File::open).transpose()?,
-        &mut matches.value_of("dna-file").map(File::open).transpose()?,
+        &mut matches.value_of("aa-file").map(File::create).transpose()?,
+        &mut matches.value_of("dna-file").map(File::create).transpose()?,
     )?;
 
     Ok(())
@@ -136,16 +136,24 @@ fn run<R: Read, W: Write>(
     global: Box<hmm::Global>,
     locals: Vec<hmm::Local>,
     inputseqs: &mut R,
-    outputstream: &mut W,
+    metastream: &mut W,
     whole_genome: bool,
     _thread_num: usize,
-    _metadata: &mut Option<File>,
-    _dna: &mut Option<File>,
+    aastream: &mut Option<File>,
+    dnastream: &mut Option<File>,
 ) -> Result<(), Box<dyn Error>> {
     let mut sequences = fasta::Reader::new(inputseqs);
     while let Some(record) = sequences.next() {
         let record = record?;
-        viterbi(&global, &locals, record, outputstream, whole_genome)?;
+        viterbi(
+            &global,
+            &locals,
+            record,
+            metastream,
+            whole_genome,
+            aastream,
+            dnastream,
+        )?;
     }
     Ok(())
 }
@@ -164,8 +172,10 @@ fn viterbi<W: Write>(
     global: &hmm::Global,
     locals: &Vec<hmm::Local>,
     record: fasta::RefRecord,
-    outputstream: &mut W,
+    metastream: &mut W,
     whole_genome: bool,
+    aastream: &mut Option<File>,
+    dnastream: &mut Option<File>,
 ) -> Result<(), Box<dyn Error>> {
     let seq = record.full_seq();
     let cg = count_cg_content(&seq);
@@ -260,6 +270,7 @@ fn viterbi<W: Write>(
                     if i == hmm::M1_STATE {
                         // from M state
                         alpha[t][i] = alpha[t - 1][hmm::M6_STATE]
+                            - global.tr[hmm::TR_GG]
                             - global.tr[hmm::TR_MM]
                             - locals[cg].e_m[0][from2][to];
                         path[t][i] = hmm::M6_STATE;
@@ -510,9 +521,9 @@ fn viterbi<W: Write>(
                 path[t][i] = i;
 
                 // from M state
-                if (t < 3 || path[t - 3][hmm::S_STATE_1] != hmm::R_STATE)
-                    && (t < 4 || path[t - 4][hmm::S_STATE_1] != hmm::R_STATE)
-                    && (t < 5 || path[t - 5][hmm::S_STATE_1] != hmm::R_STATE)
+                if (t >= 3 && path[t - 3][hmm::S_STATE_1] != hmm::R_STATE)
+                    && (t >= 4 && path[t - 4][hmm::S_STATE_1] != hmm::R_STATE)
+                    && (t >= 5 && path[t - 5][hmm::S_STATE_1] != hmm::R_STATE)
                 {
                     let temp_alpha = alpha[t - 1][i - hmm::I1_STATE_1 + hmm::M1_STATE_1]
                         - global.tr[hmm::TR_MI]
@@ -702,8 +713,7 @@ fn viterbi<W: Write>(
                         / (locals[cg].dist_s1[3]).powi(2)
                         / 2.0)
                         .exp();
-                alpha[t + 2][hmm::S_STATE_1] -=
-                    (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln().ln();
+                alpha[t + 2][hmm::S_STATE_1] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
             }
         }
 
@@ -777,7 +787,7 @@ fn viterbi<W: Write>(
                         / (locals[cg].dist_s[3]).powi(2)
                         / 2.0)
                         .exp();
-                alpha[t + 2][hmm::S_STATE] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln().ln();
+                alpha[t + 2][hmm::S_STATE] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
             }
         }
 
@@ -841,8 +851,7 @@ fn viterbi<W: Write>(
                         / (locals[cg].dist_e1[3]).powi(2)
                         / 2.0)
                         .exp();
-                alpha[t + 2][hmm::E_STATE_1] -=
-                    (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln().ln();
+                alpha[t + 2][hmm::E_STATE_1] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
             }
         }
 
@@ -870,6 +879,7 @@ fn viterbi<W: Write>(
     for t in (0..=seq.len() - 2).rev() {
         vpath.push(path[t + 1][*vpath.last().unwrap()]);
     }
+    vpath.reverse();
 
     let mut codon_start = 0; // ternaire boolean?
     let mut start_t: isize = -1;
@@ -917,6 +927,7 @@ fn viterbi<W: Write>(
             delete.clear();
 
             dna.push(seq[t]);
+            dna_f.push(seq[t]);
             dna_start_t_withstop = t + 1;
             dna_start_t = t + 1;
             if vpath[t] == hmm::M1_STATE || vpath[t] == hmm::M4_STATE_1 {
@@ -924,7 +935,6 @@ fn viterbi<W: Write>(
                     dna_start_t_withstop = t - 2;
                 }
             }
-            dna_f.push(seq[t]);
 
             start_orf = t + 1;
             prev_match = vpath[t];
@@ -943,8 +953,8 @@ fn viterbi<W: Write>(
                     && vpath[temp_t] != hmm::M1_STATE_1
                     && vpath[temp_t] != hmm::M4_STATE_1
                 {
-                    dna_f.pop();
                     dna.pop();
+                    dna_f.pop();
                     temp_t -= 1;
                 }
                 end_t = temp_t;
@@ -998,8 +1008,8 @@ fn viterbi<W: Write>(
                         }
                     }
 
-                    let mut dna_record = record.to_owned_record();
-                    let location = format!(
+                    let mut mutrecord = record.to_owned_record();
+                    mutrecord.seq = format!(
                         "{}\t{}\t+\t{}\t{}\tI:{}\tD:{}",
                         dna_start_t,
                         end_t,
@@ -1013,13 +1023,17 @@ fn viterbi<W: Write>(
                             .iter()
                             .map(|i: &usize| { format!("{},", i) })
                             .collect::<String>(),
-                    );
-                    dna_record.head.push(b' ');
-                    dna_record.head.append(&mut location.into_bytes());
+                    )
+                    .into_bytes();
+                    mutrecord.write(&mut *metastream)?;
 
                     dna = seq[dna_start_t - 1..end_t].to_vec();
-                    print_protein(&dna, 1, whole_genome)?;
-                    // TODO print DNA (formatted of not)
+                    if let Some(aastream) = aastream {
+                        print_protein(&dna, true, whole_genome, &mut mutrecord, aastream)?;
+                    }
+                    if let Some(dnastream) = dnastream {
+                        print_dna(&dna, &mut mutrecord, dnastream)?;
+                    }
                 } else if codon_start == -1 {
                     if whole_genome {
                         // add refinement of the start codons here
@@ -1055,8 +1069,8 @@ fn viterbi<W: Write>(
                         end_t = end_old + s_save;
                     }
 
-                    let mut dna_record = record.to_owned_record();
-                    let location = format!(
+                    let mut mutrecord = record.to_owned_record();
+                    mutrecord.seq = format!(
                         "{}\t{}\t-\t{}\t{}\tI:{}\tD:{}",
                         dna_start_t_withstop,
                         end_t,
@@ -1070,14 +1084,17 @@ fn viterbi<W: Write>(
                             .iter()
                             .map(|i: &usize| { format!("{},", i) })
                             .collect::<String>(),
-                    );
-                    dna_record.head.push(b' ');
-                    dna_record.head.append(&mut location.into_bytes());
-                    dna_record.write(&mut *outputstream)?;
+                    )
+                    .into_bytes();
+                    mutrecord.write(&mut *metastream)?;
 
                     dna = seq[dna_start_t_withstop - 1..end_t].to_vec();
-                    print_protein(&dna, 1, whole_genome)?;
-                    // TODO print DNA (formatted or not)
+                    if let Some(aastream) = aastream {
+                        print_protein(&dna, false, whole_genome, &mut mutrecord, aastream)?;
+                    }
+                    if let Some(dnastream) = dnastream {
+                        print_dna(&dna, &mut mutrecord, dnastream)?;
+                    }
                 }
             }
 
@@ -1138,7 +1155,79 @@ fn trinucleotide(a: u8, b: u8, c: u8) -> usize {
     }
 }
 
-#[allow(unused_variables)]
-fn print_protein(dna: &Vec<u8>, strand: usize, whole_genome: bool) -> Result<(), Box<dyn Error>> {
-    Ok(()) // TODO implement
+fn trinucleotide_pep(a: u8, b: u8, c: u8) -> usize {
+    if let (Some(a_), Some(b_), Some(c_)) = (nt2int(a), nt2int(b), nt2int(c)) {
+        16 * a_ + 4 * b_ + c_
+    } else {
+        64
+    }
+}
+
+const CODON_CODE: [u8; 65] = [
+    b'K', b'N', b'K', b'N', b'T', b'T', b'T', b'T', b'R', b'S', b'R', b'S', b'I', b'I', b'M', b'I',
+    b'Q', b'H', b'Q', b'H', b'P', b'P', b'P', b'P', b'R', b'R', b'R', b'R', b'L', b'L', b'L', b'L',
+    b'E', b'D', b'E', b'D', b'A', b'A', b'A', b'A', b'G', b'G', b'G', b'G', b'V', b'V', b'V', b'V',
+    b'*', b'Y', b'*', b'Y', b'S', b'S', b'S', b'S', b'*', b'C', b'W', b'C', b'L', b'F', b'L', b'F',
+    b'X',
+];
+
+const ANTI_CODON_CODE: [u8; 65] = [
+    b'F', b'V', b'L', b'I', b'C', b'G', b'R', b'S', b'S', b'A', b'P', b'T', b'Y', b'D', b'H', b'N',
+    b'L', b'V', b'L', b'M', b'W', b'G', b'R', b'R', b'S', b'A', b'P', b'T', b'*', b'E', b'Q', b'K',
+    b'F', b'V', b'L', b'I', b'C', b'G', b'R', b'S', b'S', b'A', b'P', b'T', b'Y', b'D', b'H', b'N',
+    b'L', b'V', b'L', b'I', b'*', b'G', b'R', b'R', b'S', b'A', b'P', b'T', b'*', b'E', b'Q', b'K',
+    b'X',
+];
+
+fn print_protein(
+    dna: &Vec<u8>,
+    forward_strand: bool,
+    whole_genome: bool,
+    record: &mut fasta::OwnedRecord,
+    file: &mut File,
+) -> Result<(), Box<dyn Error>> {
+    let mut protein: Vec<u8> = if forward_strand {
+        dna.chunks_exact(3)
+            .map(|c| CODON_CODE[trinucleotide_pep(c[0], c[1], c[2])])
+            .collect()
+    } else {
+        dna.rchunks_exact(3)
+            .map(|c| ANTI_CODON_CODE[trinucleotide_pep(c[0], c[1], c[2])])
+            .collect()
+    };
+    if protein.last() == Some(&b'*') {
+        protein.pop();
+    }
+
+    // alternative start codons still encode for Met
+    // E. coli uses 83% AUG (3542/4284), 14% (612) GUG, 3% (103) UUG and one or two others (e.g., an AUU and possibly a CUG)
+    // only consider two major alternative ones, GTG and TTG
+    if whole_genome {
+        if forward_strand {
+            let s = trinucleotide_pep(dna[0], dna[1], dna[2]);
+            if s == trinucleotide_pep(b'G', b'T', b'G') || s == trinucleotide_pep(b'T', b'T', b'G')
+            {
+                protein[0] = b'M';
+            }
+        } else {
+            let s = trinucleotide_pep(dna[dna.len() - 3], dna[dna.len() - 2], dna[dna.len() - 1]);
+            if s == trinucleotide_pep(b'C', b'A', b'C') || s == trinucleotide_pep(b'C', b'A', b'A')
+            {
+                protein[0] = b'M';
+            }
+        }
+    }
+
+    record.seq = protein;
+    record.write(file)?;
+
+    Ok(())
+}
+
+fn print_dna(
+    dna: &Vec<u8>,
+    record: &mut fasta::OwnedRecord,
+    file: &mut File,
+) -> Result<(), Box<dyn Error>> {
+    Ok(())
 }
