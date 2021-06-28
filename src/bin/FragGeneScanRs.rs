@@ -29,18 +29,21 @@ fn main() -> Result<(), Box<dyn Error>> {
             .value_name("seq_file_name")
             .takes_value(true)
             .default_value("stdin")
-            .help("Sequence file name including the full path."))
+            .help("Sequence file name including the full path. Using 'stdin' (or not suplying this argument) reads from standard input."))
         .arg(Arg::with_name("output-file")
             .short("o")
             .long("output-file-name")
             .value_name("output_file_name")
             .takes_value(true)
-            .default_value("stdout")
-            .help("Output file name including the full path."))
+            .help("Output metadata, proteins and dna to files with this base name. Using 'stdout' write the predicted AA reads to standard output."))
         .arg(Arg::with_name("complete")
             .short("w")
             .long("complete")
             .help("The input sequence has complete genomic sequences; not short sequence reads."))
+        .arg(Arg::with_name("formatted")
+            .short("f")
+            .long("formatted")
+            .help("Format the DNA output."))
         .arg(Arg::with_name("train-file")
             .short("t")
             .long("training-file")
@@ -70,18 +73,24 @@ fn main() -> Result<(), Box<dyn Error>> {
             .takes_value(true)
             .default_value("1")
             .help("The number of threads used by FragGeneScan++."))
+        .arg(Arg::with_name("meta-file")
+            .short("m")
+            .long("meta-file")
+            .value_name("meta_file")
+            .takes_value(true)
+            .help("Output metadata to this file (supersedes -o)."))
         .arg(Arg::with_name("aa-file")
             .short("e")
             .long("aa-file")
             .value_name("aa_file")
             .takes_value(true)
-            .help("Output predicted AA reads."))
+            .help("Output predicted AA reads to this file (supersedes -o)."))
         .arg(Arg::with_name("dna-file")
             .short("d")
             .long("dna-file")
             .value_name("dna_file")
             .takes_value(true)
-            .help("Output predicted DNA reads."))
+            .help("Output predicted DNA reads to this file (supersedes -o)."))
         // .arg(Arg::with_name("chunk-size")
         //     .short("c")
         //     .long("chunk-size")
@@ -102,7 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // writeOutputFiles in run_hmm.c
 
     let (global, locals) = hmm::get_train_from_file(
-        PathBuf::from(matches.value_of("train-dir").unwrap_or("train")),
+        PathBuf::from(matches.value_of("train-file-dir").unwrap_or("train")),
         PathBuf::from(matches.value_of("train-file").unwrap()),
     )?;
 
@@ -113,20 +122,48 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let stdout = io::stdout();
-    let mut outputseqs: Box<dyn Write> = match matches.value_of("output-file").unwrap_or("stdout") {
-        "stdout" => Box::new(stdout.lock()),
-        filename => Box::new(File::create(filename)?),
+    let mut aastream: Option<Box<dyn Write>> =
+        match (matches.value_of("aa-file"), matches.value_of("output-file")) {
+            (Some(filename), _) => Some(Box::new(File::create(filename)?)),
+            (None, Some("stdout")) => Some(Box::new(stdout.lock())),
+            (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".faa")?)),
+            (None, None) => None,
+        };
+
+    let mut metastream: Option<File> = match (
+        matches.value_of("meta-file"),
+        matches.value_of("output-file"),
+    ) {
+        (Some(filename), _) => Some(File::create(filename)?),
+        (None, Some("stdout")) => None,
+        (None, Some(filename)) => Some(File::create(filename.to_owned() + ".out")?),
+        (None, None) => None,
     };
+
+    let mut dnastream: Option<File> = match (
+        matches.value_of("dna-file"),
+        matches.value_of("output-file"),
+    ) {
+        (Some(filename), _) => Some(File::create(filename)?),
+        (None, Some("stdout")) => None,
+        (None, Some(filename)) => Some(File::create(filename.to_owned() + ".ffn")?),
+        (None, None) => None,
+    };
+
+    if aastream.is_none() && metastream.is_none() && dnastream.is_none() {
+        aastream = Some(Box::new(stdout.lock()));
+    }
 
     run(
         global,
         locals,
         &mut inputseqs,
-        &mut outputseqs,
+        &mut aastream,
+        &mut metastream,
+        &mut dnastream,
         matches.is_present("complete"),
+        matches.is_present("formatted"),
         usize::from_str_radix(matches.value_of("thread-num").unwrap_or("1"), 10)?,
-        &mut matches.value_of("aa-file").map(File::create).transpose()?,
-        &mut matches.value_of("dna-file").map(File::create).transpose()?,
     )?;
 
     Ok(())
@@ -136,11 +173,12 @@ fn run<R: Read, W: Write>(
     global: Box<hmm::Global>,
     locals: Vec<hmm::Local>,
     inputseqs: &mut R,
-    metastream: &mut W,
-    whole_genome: bool,
-    _thread_num: usize,
-    aastream: &mut Option<File>,
+    aastream: &mut Option<W>,
+    metastream: &mut Option<File>,
     dnastream: &mut Option<File>,
+    whole_genome: bool,
+    formatted: bool,
+    _thread_num: usize,
 ) -> Result<(), Box<dyn Error>> {
     let mut sequences = fasta::Reader::new(inputseqs);
     while let Some(record) = sequences.next() {
@@ -149,10 +187,11 @@ fn run<R: Read, W: Write>(
             &global,
             &locals,
             record,
-            metastream,
-            whole_genome,
             aastream,
+            metastream,
             dnastream,
+            whole_genome,
+            formatted,
         )?;
     }
     Ok(())
@@ -172,12 +211,14 @@ fn viterbi<W: Write>(
     global: &hmm::Global,
     locals: &Vec<hmm::Local>,
     record: fasta::RefRecord,
-    metastream: &mut W,
-    whole_genome: bool,
-    aastream: &mut Option<File>,
+    aastream: &mut Option<W>,
+    metastream: &mut Option<File>,
     dnastream: &mut Option<File>,
+    whole_genome: bool,
+    formatted: bool,
 ) -> Result<(), Box<dyn Error>> {
-    let seq = record.full_seq();
+    let fasta::OwnedRecord { mut head, seq } = record.to_owned_record();
+    head.truncate(head.partition_point(u8::is_ascii_whitespace));
     let cg = count_cg_content(&seq);
 
     let gene_len = if whole_genome { 120 } else { 60 }; // minimum length to be output
@@ -1008,31 +1049,39 @@ fn viterbi<W: Write>(
                         }
                     }
 
-                    let mut mutrecord = record.to_owned_record();
-                    mutrecord.seq = format!(
-                        "{}\t{}\t+\t{}\t{}\tI:{}\tD:{}",
-                        dna_start_t,
-                        end_t,
-                        frame,
-                        final_score,
-                        insert
-                            .iter()
-                            .map(|i: &usize| { format!("{},", i) })
-                            .collect::<String>(),
-                        delete
-                            .iter()
-                            .map(|i: &usize| { format!("{},", i) })
-                            .collect::<String>(),
-                    )
-                    .into_bytes();
-                    mutrecord.write(&mut *metastream)?;
+                    if let Some(metastream) = metastream {
+                        fasta::OwnedRecord {
+                            head: head.clone(),
+                            seq: format!(
+                                "{}\t{}\t+\t{}\t{}\tI:{}\tD:{}",
+                                dna_start_t,
+                                end_t,
+                                frame,
+                                final_score,
+                                insert
+                                    .iter()
+                                    .map(|i: &usize| { format!("{},", i) })
+                                    .collect::<String>(),
+                                delete
+                                    .iter()
+                                    .map(|i: &usize| { format!("{},", i) })
+                                    .collect::<String>()
+                            )
+                            .into_bytes(),
+                        }
+                        .write(&mut *metastream)?;
+                    }
 
                     dna = seq[dna_start_t - 1..end_t].to_vec();
                     if let Some(aastream) = aastream {
-                        print_protein(&dna, true, whole_genome, &mut mutrecord, aastream)?;
+                        let mut infohead = head.clone();
+                        infohead.append(&mut format!("_{}_{}_+", dna_start_t, end_t).into_bytes());
+                        print_protein(&dna, true, whole_genome, infohead, aastream)?;
                     }
                     if let Some(dnastream) = dnastream {
-                        print_dna(&dna, &mut mutrecord, dnastream)?;
+                        let mut infohead = head.clone();
+                        infohead.append(&mut format!("_{}_{}_+", dna_start_t, end_t).into_bytes());
+                        print_dna(if formatted { &dna_f } else { &dna }, &infohead, dnastream)?;
                     }
                 } else if codon_start == -1 {
                     if whole_genome {
@@ -1069,31 +1118,47 @@ fn viterbi<W: Write>(
                         end_t = end_old + s_save;
                     }
 
-                    let mut mutrecord = record.to_owned_record();
-                    mutrecord.seq = format!(
-                        "{}\t{}\t-\t{}\t{}\tI:{}\tD:{}",
-                        dna_start_t_withstop,
-                        end_t,
-                        frame,
-                        final_score,
-                        insert
-                            .iter()
-                            .map(|i: &usize| { format!("{},", i) })
-                            .collect::<String>(),
-                        delete
-                            .iter()
-                            .map(|i: &usize| { format!("{},", i) })
-                            .collect::<String>(),
-                    )
-                    .into_bytes();
-                    mutrecord.write(&mut *metastream)?;
+                    if let Some(metastream) = metastream {
+                        fasta::OwnedRecord {
+                            head: head.clone(),
+                            seq: format!(
+                                "{}\t{}\t-\t{}\t{}\tI:{}\tD:{}",
+                                dna_start_t,
+                                end_t,
+                                frame,
+                                final_score,
+                                insert
+                                    .iter()
+                                    .map(|i: &usize| { format!("{},", i) })
+                                    .collect::<String>(),
+                                delete
+                                    .iter()
+                                    .map(|i: &usize| { format!("{},", i) })
+                                    .collect::<String>()
+                            )
+                            .into_bytes(),
+                        }
+                        .write(&mut *metastream)?;
+                    }
 
                     dna = seq[dna_start_t_withstop - 1..end_t].to_vec();
                     if let Some(aastream) = aastream {
-                        print_protein(&dna, false, whole_genome, &mut mutrecord, aastream)?;
+                        let mut infohead = head.clone();
+                        infohead.append(
+                            &mut format!("_{}_{}_-", dna_start_t_withstop, end_t).into_bytes(),
+                        );
+                        print_protein(&dna, true, whole_genome, infohead, aastream)?;
                     }
                     if let Some(dnastream) = dnastream {
-                        print_dna(&dna, &mut mutrecord, dnastream)?;
+                        let mut infohead = head.clone();
+                        infohead.append(
+                            &mut format!("_{}_{}_-", dna_start_t_withstop, end_t).into_bytes(),
+                        );
+                        print_dna(
+                            &get_rc_dna(if formatted { &dna_f } else { &dna }),
+                            &infohead,
+                            dnastream,
+                        )?;
                     }
                 }
             }
@@ -1179,12 +1244,12 @@ const ANTI_CODON_CODE: [u8; 65] = [
     b'X',
 ];
 
-fn print_protein(
+fn print_protein<W: Write>(
     dna: &Vec<u8>,
     forward_strand: bool,
     whole_genome: bool,
-    record: &mut fasta::OwnedRecord,
-    file: &mut File,
+    head: Vec<u8>,
+    file: &mut W,
 ) -> Result<(), Box<dyn Error>> {
     let mut protein: Vec<u8> = if forward_strand {
         dna.chunks_exact(3)
@@ -1218,16 +1283,40 @@ fn print_protein(
         }
     }
 
-    record.seq = protein;
-    record.write(file)?;
+    fasta::OwnedRecord {
+        head: head,
+        seq: protein,
+    }
+    .write(file)?;
 
     Ok(())
 }
 
-fn print_dna(
-    dna: &Vec<u8>,
-    record: &mut fasta::OwnedRecord,
-    file: &mut File,
-) -> Result<(), Box<dyn Error>> {
+fn print_dna(dna: &Vec<u8>, head: &Vec<u8>, file: &mut File) -> Result<(), Box<dyn Error>> {
+    write!(
+        file,
+        "> {}\n{}\n",
+        std::str::from_utf8(head)?,
+        std::str::from_utf8(dna)?
+    )?;
     Ok(())
+}
+
+fn get_rc_dna(dna: &Vec<u8>) -> Vec<u8> {
+    dna.iter()
+        .rev()
+        .map(|c| match c {
+            b'A' => b'T',
+            b'C' => b'G',
+            b'G' => b'C',
+            b'T' => b'A',
+            b'a' => b't',
+            b'c' => b'g',
+            b'g' => b'c',
+            b't' => b'a',
+            b'N' => b'N',
+            b'n' => b'n',
+            _ => b'x',
+        })
+        .collect()
 }
