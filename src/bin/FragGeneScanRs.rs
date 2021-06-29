@@ -906,6 +906,23 @@ fn viterbi<W: Write>(
         }
     }
 
+    let vpath = backtrack(&alpha, path);
+    output(
+        &locals[cg],
+        head,
+        seq,
+        aastream,
+        metastream,
+        dnastream,
+        whole_genome,
+        formatted,
+        vpath,
+        gene_len,
+        alpha,
+    )
+}
+
+fn backtrack(alpha: &Vec<[f64; hmm::NUM_STATE]>, path: Vec<[usize; hmm::NUM_STATE]>) -> Vec<usize> {
     // backtrack array to find the optimal path
     let mut vpath: Vec<usize> = vec![0];
     let mut prob = f64::INFINITY;
@@ -917,11 +934,26 @@ fn viterbi<W: Write>(
     }
 
     // backtrack the optimal path
-    for t in (0..=seq.len() - 2).rev() {
+    for t in (0..=path.len() - 2).rev() {
         vpath.push(path[t + 1][*vpath.last().unwrap()]);
     }
     vpath.reverse();
+    vpath
+}
 
+fn output<W: Write>(
+    local: &hmm::Local,
+    head: Vec<u8>,
+    seq: Vec<u8>,
+    aastream: &mut Option<W>,
+    metastream: &mut Option<File>,
+    dnastream: &mut Option<File>,
+    whole_genome: bool,
+    formatted: bool,
+    vpath: Vec<usize>,
+    gene_len: usize,
+    alpha: Vec<[f64; hmm::NUM_STATE]>,
+) -> Result<(), Box<dyn Error>> {
     let mut codon_start = 0; // ternaire boolean?
     let mut start_t: isize = -1;
     let mut dna_start_t_withstop: usize = 0;
@@ -1031,7 +1063,7 @@ fn viterbi<W: Write>(
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
                                     let idx = trinucleotide(utr[j], utr[j + 1], utr[j + 2]);
-                                    freq_sum -= locals[cg].tr_s[j][idx];
+                                    freq_sum -= local.tr_s[j][idx];
                                 }
                                 if s == 0 {
                                     e_save = freq_sum;
@@ -1101,7 +1133,7 @@ fn viterbi<W: Write>(
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
                                     let idx = trinucleotide(utr[j], utr[j + 1], utr[j + 2]);
-                                    freq_sum -= locals[cg].tr_e1[j][idx]; // TODO stop1? (their note)
+                                    freq_sum -= local.tr_e1[j][idx]; // TODO stop1? (their note)
                                 }
                                 if s == 0 {
                                     e_save = freq_sum;
