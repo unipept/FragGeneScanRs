@@ -1147,7 +1147,7 @@ fn viterbi<W: Write>(
                         infohead.append(
                             &mut format!("_{}_{}_-", dna_start_t_withstop, end_t).into_bytes(),
                         );
-                        print_protein(&dna, true, whole_genome, infohead, aastream)?;
+                        print_protein(&dna, false, whole_genome, infohead, aastream)?;
                     }
                     if let Some(dnastream) = dnastream {
                         let mut infohead = head.clone();
@@ -1183,6 +1183,8 @@ fn viterbi<W: Write>(
                     delete.push(t + 1);
                 }
             }
+            dna.pop();
+            dna_f.pop();
             dna.push(seq[t]); // TODO original code does not dna_id += 1 here
             dna_f.push(seq[t]); // TODO original code does not dna_f_id += 1 here
             prev_match = vpath[t];
