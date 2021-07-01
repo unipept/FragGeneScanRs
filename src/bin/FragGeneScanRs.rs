@@ -193,19 +193,13 @@ fn run<R: Read, W: Write>(
         );
         for gene in genes {
             if let Some(metastream) = metastream {
-                print_meta(&gene.head, &gene.meta, metastream)?;
+                print_meta(&gene, metastream)?;
             }
             if let Some(dnastream) = dnastream {
-                print_dna(&gene.dna_ffn, &gene.infohead, dnastream)?;
+                print_dna(&gene, dnastream)?;
             }
             if let Some(aastream) = aastream {
-                print_protein(
-                    &gene.dna,
-                    gene.forward_strand,
-                    whole_genome,
-                    &gene.infohead,
-                    aastream,
-                )?;
+                print_protein(&gene, whole_genome, aastream)?;
             }
         }
     }
@@ -936,11 +930,16 @@ fn backtrack(alpha: &Vec<[f64; hmm::NUM_STATE]>, path: Vec<[usize; hmm::NUM_STAT
 
 struct Gene {
     head: Vec<u8>,
-    infohead: Vec<u8>,
-    meta: Vec<u8>,
+    start: usize,
+    metastart: usize,
+    end: usize,
+    frame: usize,
+    score: f64,
     dna: Vec<u8>,
     dna_ffn: Vec<u8>,
     forward_strand: bool,
+    inserted: Vec<usize>,
+    deleted: Vec<usize>,
 }
 
 fn output(
@@ -960,9 +959,7 @@ fn output(
     let mut dna_start_t: usize = 0;
 
     let mut dna = vec![];
-    let mut _dna1: [u8; 300000] = [0; 300000];
     let mut dna_f = vec![];
-    let mut _dna_f1: [u8; 300000] = [0; 300000];
     let mut insert = vec![];
     let mut delete = vec![];
 
@@ -991,9 +988,7 @@ fn output(
                 || vpath[t] == hmm::M4_STATE_1)
         {
             dna.clear();
-            _dna1 = [0; 300000];
             dna_f.clear();
-            _dna_f1 = [0; 300000];
             insert.clear();
             delete.clear();
 
@@ -1078,28 +1073,13 @@ fn output(
                         }
                     }
 
-                    // dna = seq[dna_start_t - 1..end_t].to_vec();
-                    let mut infohead = head.clone();
-                    infohead.append(&mut format!("_{}_{}_+", dna_start_t, end_t).into_bytes());
                     genes.push(Gene {
                         head: head.clone(),
-                        infohead: infohead,
-                        meta: format!(
-                            "{}\t{}\t+\t{}\t{}\tI:{}\tD:{}",
-                            dna_start_t,
-                            end_t,
-                            frame,
-                            final_score,
-                            insert
-                                .iter()
-                                .map(|i: &usize| { format!("{},", i) })
-                                .collect::<String>(),
-                            delete
-                                .iter()
-                                .map(|i: &usize| { format!("{},", i) })
-                                .collect::<String>()
-                        )
-                        .into_bytes(),
+                        start: dna_start_t,
+                        metastart: dna_start_t,
+                        end: end_t,
+                        frame: frame,
+                        score: final_score,
                         dna: dna.clone(),
                         dna_ffn: if formatted {
                             dna_f.clone()
@@ -1107,6 +1087,8 @@ fn output(
                             dna.clone()
                         },
                         forward_strand: true,
+                        inserted: insert.clone(),
+                        deleted: delete.clone(),
                     });
                 } else if codon_start == -1 {
                     if whole_genome {
@@ -1140,31 +1122,18 @@ fn output(
                         end_t = end_old + s_save;
                     }
 
-                    let mut infohead = head.clone();
-                    infohead
-                        .append(&mut format!("_{}_{}_-", dna_start_t_withstop, end_t).into_bytes());
                     genes.push(Gene {
                         head: head.clone(),
-                        infohead: infohead,
-                        meta: format!(
-                            "{}\t{}\t-\t{}\t{}\tI:{}\tD:{}",
-                            dna_start_t,
-                            end_t,
-                            frame,
-                            final_score,
-                            insert
-                                .iter()
-                                .map(|i: &usize| { format!("{},", i) })
-                                .collect::<String>(),
-                            delete
-                                .iter()
-                                .map(|i: &usize| { format!("{},", i) })
-                                .collect::<String>()
-                        )
-                        .into_bytes(),
+                        start: dna_start_t_withstop,
+                        metastart: dna_start_t,
+                        end: end_t,
+                        frame: frame,
+                        score: final_score,
                         dna: dna.clone(),
                         dna_ffn: get_rc_dna(if formatted { &dna_f } else { &dna }),
                         forward_strand: false,
+                        inserted: insert.clone(),
+                        deleted: delete.clone(),
                     });
                 }
             }
@@ -1253,18 +1222,18 @@ const ANTI_CODON_CODE: [u8; 65] = [
 ];
 
 fn print_protein<W: Write>(
-    dna: &Vec<u8>,
-    forward_strand: bool,
+    gene: &Gene,
     whole_genome: bool,
-    head: &Vec<u8>,
     file: &mut W,
 ) -> Result<(), Box<dyn Error>> {
-    let mut protein: Vec<u8> = if forward_strand {
-        dna.chunks_exact(3)
+    let mut protein: Vec<u8> = if gene.forward_strand {
+        gene.dna
+            .chunks_exact(3)
             .map(|c| CODON_CODE[trinucleotide_pep(c[0], c[1], c[2])])
             .collect()
     } else {
-        dna.rchunks_exact(3)
+        gene.dna
+            .rchunks_exact(3)
             .map(|c| ANTI_CODON_CODE[trinucleotide_pep(c[0], c[1], c[2])])
             .collect()
     };
@@ -1276,14 +1245,18 @@ fn print_protein<W: Write>(
     // E. coli uses 83% AUG (3542/4284), 14% (612) GUG, 3% (103) UUG and one or two others (e.g., an AUU and possibly a CUG)
     // only consider two major alternative ones, GTG and TTG
     if whole_genome {
-        if forward_strand {
-            let s = trinucleotide_pep(dna[0], dna[1], dna[2]);
+        if gene.forward_strand {
+            let s = trinucleotide_pep(gene.dna[0], gene.dna[1], gene.dna[2]);
             if s == trinucleotide_pep(b'G', b'T', b'G') || s == trinucleotide_pep(b'T', b'T', b'G')
             {
                 protein[0] = b'M';
             }
         } else {
-            let s = trinucleotide_pep(dna[dna.len() - 3], dna[dna.len() - 2], dna[dna.len() - 1]);
+            let s = trinucleotide_pep(
+                gene.dna[gene.dna.len() - 3],
+                gene.dna[gene.dna.len() - 2],
+                gene.dna[gene.dna.len() - 1],
+            );
             if s == trinucleotide_pep(b'C', b'A', b'C') || s == trinucleotide_pep(b'C', b'A', b'A')
             {
                 protein[0] = b'M';
@@ -1292,7 +1265,14 @@ fn print_protein<W: Write>(
     }
 
     fasta::OwnedRecord {
-        head: head.clone(),
+        head: format!(
+            "{}_{}_{}_{}",
+            std::str::from_utf8(&gene.head)?,
+            gene.start,
+            gene.end,
+            if gene.forward_strand { '+' } else { '-' }
+        )
+        .into_bytes(),
         seq: protein,
     }
     .write(file)?;
@@ -1300,10 +1280,17 @@ fn print_protein<W: Write>(
     Ok(())
 }
 
-fn print_dna(dna: &Vec<u8>, head: &Vec<u8>, file: &mut File) -> Result<(), Box<dyn Error>> {
+fn print_dna(gene: &Gene, file: &mut File) -> Result<(), Box<dyn Error>> {
     fasta::OwnedRecord {
-        head: head.clone(),
-        seq: dna.clone(),
+        head: format!(
+            "{}_{}_{}_{}",
+            std::str::from_utf8(&gene.head)?,
+            gene.start,
+            gene.end,
+            if gene.forward_strand { '+' } else { '-' }
+        )
+        .into_bytes(),
+        seq: gene.dna_ffn.clone(),
     }
     .write(file)?;
     Ok(())
@@ -1328,10 +1315,26 @@ fn get_rc_dna(dna: &Vec<u8>) -> Vec<u8> {
         .collect()
 }
 
-fn print_meta(head: &Vec<u8>, seq: &Vec<u8>, file: &mut File) -> Result<(), Box<dyn Error>> {
+fn print_meta(gene: &Gene, file: &mut File) -> Result<(), Box<dyn Error>> {
     fasta::OwnedRecord {
-        head: head.to_owned(),
-        seq: seq.to_owned(),
+        head: gene.head.to_owned(),
+        seq: format!(
+            "{}\t{}\t{}\t{}\t{}\tI:{}\tD:{}",
+            gene.metastart,
+            gene.end,
+            if gene.forward_strand { '+' } else { '-' },
+            gene.frame,
+            gene.score,
+            gene.inserted
+                .iter()
+                .map(|i: &usize| { format!("{},", i) })
+                .collect::<String>(),
+            gene.deleted
+                .iter()
+                .map(|i: &usize| { format!("{},", i) })
+                .collect::<String>()
+        )
+        .into_bytes(),
     }
     .write(file)?;
     Ok(())
