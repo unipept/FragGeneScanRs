@@ -183,16 +183,28 @@ fn run<R: Read, W: Write>(
     let mut sequences = fasta::Reader::new(inputseqs);
     while let Some(record) = sequences.next() {
         let record = record?;
-        viterbi(
+        let genes = viterbi(
             &global,
             &locals,
             record,
-            aastream,
             metastream,
-            dnastream,
             whole_genome,
             formatted,
         )?;
+        for gene in genes {
+            if let Some(dnastream) = dnastream {
+                print_dna(&gene.dna_ffn, &gene.head, dnastream)?;
+            }
+            if let Some(aastream) = aastream {
+                print_protein(
+                    &gene.dna,
+                    gene.forward_strand,
+                    whole_genome,
+                    &gene.head,
+                    aastream,
+                )?;
+            }
+        }
     }
     Ok(())
 }
@@ -207,16 +219,14 @@ fn count_cg_content(seq: &[u8]) -> usize {
     min(43, max(26, count * 100 / seq.len()) - 26)
 }
 
-fn viterbi<W: Write>(
+fn viterbi(
     global: &hmm::Global,
     locals: &Vec<hmm::Local>,
     record: fasta::RefRecord,
-    aastream: &mut Option<W>,
     metastream: &mut Option<File>,
-    dnastream: &mut Option<File>,
     whole_genome: bool,
     formatted: bool,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<Vec<Gene>, Box<dyn Error>> {
     let fasta::OwnedRecord { mut head, seq } = record.to_owned_record();
     head.truncate(head.partition_point(u8::is_ascii_whitespace));
     let cg = count_cg_content(&seq);
@@ -898,9 +908,7 @@ fn viterbi<W: Write>(
         &locals[cg],
         head,
         seq,
-        aastream,
         metastream,
-        dnastream,
         whole_genome,
         formatted,
         vpath,
@@ -928,19 +936,25 @@ fn backtrack(alpha: &Vec<[f64; hmm::NUM_STATE]>, path: Vec<[usize; hmm::NUM_STAT
     vpath
 }
 
-fn output<W: Write>(
+struct Gene {
+    head: Vec<u8>,
+    dna: Vec<u8>,
+    dna_ffn: Vec<u8>,
+    forward_strand: bool,
+}
+
+fn output(
     local: &hmm::Local,
     head: Vec<u8>,
     seq: Vec<u8>,
-    aastream: &mut Option<W>,
     metastream: &mut Option<File>,
-    dnastream: &mut Option<File>,
     whole_genome: bool,
     formatted: bool,
     vpath: Vec<usize>,
     gene_len: usize,
     alpha: Vec<[f64; hmm::NUM_STATE]>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<Vec<Gene>, Box<dyn Error>> {
+    let mut genes = vec![];
     let mut codon_start = 0; // ternaire boolean?
     let mut start_t: isize = -1;
     let mut dna_start_t_withstop: usize = 0;
@@ -1089,16 +1103,18 @@ fn output<W: Write>(
                     }
 
                     // dna = seq[dna_start_t - 1..end_t].to_vec();
-                    if let Some(aastream) = aastream {
-                        let mut infohead = head.clone();
-                        infohead.append(&mut format!("_{}_{}_+", dna_start_t, end_t).into_bytes());
-                        print_protein(&dna, true, whole_genome, infohead, aastream)?;
-                    }
-                    if let Some(dnastream) = dnastream {
-                        let mut infohead = head.clone();
-                        infohead.append(&mut format!("_{}_{}_+", dna_start_t, end_t).into_bytes());
-                        print_dna(if formatted { &dna_f } else { &dna }, &infohead, dnastream)?;
-                    }
+                    let mut infohead = head.clone();
+                    infohead.append(&mut format!("_{}_{}_+", dna_start_t, end_t).into_bytes());
+                    genes.push(Gene {
+                        head: infohead,
+                        dna: dna.clone(),
+                        dna_ffn: if formatted {
+                            dna_f.clone()
+                        } else {
+                            dna.clone()
+                        },
+                        forward_strand: true,
+                    });
                 } else if codon_start == -1 {
                     if whole_genome {
                         // add refinement of the start codons here
@@ -1154,25 +1170,15 @@ fn output<W: Write>(
                         .write(&mut *metastream)?;
                     }
 
-                    //dna = seq[dna_start_t_withstop - 1..end_t].to_vec();
-                    if let Some(aastream) = aastream {
-                        let mut infohead = head.clone();
-                        infohead.append(
-                            &mut format!("_{}_{}_-", dna_start_t_withstop, end_t).into_bytes(),
-                        );
-                        print_protein(&dna, false, whole_genome, infohead, aastream)?;
-                    }
-                    if let Some(dnastream) = dnastream {
-                        let mut infohead = head.clone();
-                        infohead.append(
-                            &mut format!("_{}_{}_-", dna_start_t_withstop, end_t).into_bytes(),
-                        );
-                        print_dna(
-                            &get_rc_dna(if formatted { &dna_f } else { &dna }),
-                            &infohead,
-                            dnastream,
-                        )?;
-                    }
+                    let mut infohead = head.clone();
+                    infohead
+                        .append(&mut format!("_{}_{}_-", dna_start_t_withstop, end_t).into_bytes());
+                    genes.push(Gene {
+                        head: infohead,
+                        dna: dna.clone(),
+                        dna_ffn: get_rc_dna(if formatted { &dna_f } else { &dna }),
+                        forward_strand: false,
+                    });
                 }
             }
 
@@ -1214,7 +1220,7 @@ fn output<W: Write>(
         }
     }
 
-    Ok(())
+    Ok(genes)
 }
 
 fn nt2int(nt: u8) -> Option<usize> {
@@ -1263,7 +1269,7 @@ fn print_protein<W: Write>(
     dna: &Vec<u8>,
     forward_strand: bool,
     whole_genome: bool,
-    head: Vec<u8>,
+    head: &Vec<u8>,
     file: &mut W,
 ) -> Result<(), Box<dyn Error>> {
     let mut protein: Vec<u8> = if forward_strand {
@@ -1299,7 +1305,7 @@ fn print_protein<W: Write>(
     }
 
     fasta::OwnedRecord {
-        head: head,
+        head: head.clone(),
         seq: protein,
     }
     .write(file)?;
