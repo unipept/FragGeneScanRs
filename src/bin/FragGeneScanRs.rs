@@ -180,10 +180,12 @@ fn run<R: Read, W: Write>(
     formatted: bool,
     _thread_num: usize,
 ) -> Result<(), Box<dyn Error>> {
-    let mut sequences = fasta::Reader::new(inputseqs);
-    while let Some(record) = sequences.next() {
-        let record = record?;
-        let genes = viterbi(&global, &locals, record, whole_genome, formatted)?;
+    for record in fasta::Reader::new(inputseqs).into_records() {
+        let fasta::OwnedRecord { mut head, seq } = record?;
+        head.truncate(head.partition_point(u8::is_ascii_whitespace));
+        let cg = count_cg_content(&seq);
+
+        let genes = viterbi(&global, &locals[cg], head, seq, whole_genome, formatted);
         for gene in genes {
             if let Some(metastream) = metastream {
                 fasta::OwnedRecord {
@@ -221,15 +223,12 @@ fn count_cg_content(seq: &[u8]) -> usize {
 
 fn viterbi(
     global: &hmm::Global,
-    locals: &Vec<hmm::Local>,
-    record: fasta::RefRecord,
+    local: &hmm::Local,
+    head: Vec<u8>,
+    seq: Vec<u8>,
     whole_genome: bool,
     formatted: bool,
-) -> Result<Vec<Gene>, Box<dyn Error>> {
-    let fasta::OwnedRecord { mut head, seq } = record.to_owned_record();
-    head.truncate(head.partition_point(u8::is_ascii_whitespace));
-    let cg = count_cg_content(&seq);
-
+) -> Vec<Gene> {
     let gene_len = if whole_genome { 120 } else { 60 }; // minimum length to be output
 
     let mut alpha: Vec<[f64; hmm::NUM_STATE]> = vec![];
@@ -320,7 +319,7 @@ fn viterbi(
                     alpha[t][i] = alpha[t - 1][hmm::M6_STATE]
                         - global.tr[hmm::TR_GG]
                         - global.tr[hmm::TR_MM]
-                        - locals[cg].e_m[0][from2][to];
+                        - local.e_m[0][from2][to];
                     path[t][i] = hmm::M6_STATE;
 
                     // from D state
@@ -336,7 +335,7 @@ fn viterbi(
                             if num_d > 0 {
                                 let temp_alpha = alpha[t - 1][j]
                                     - global.tr[hmm::TR_MD]
-                                    - locals[cg].e_m[0][from2][to]
+                                    - local.e_m[0][from2][to]
                                     - 0.25_f64.ln() * (num_d - 1) as f64
                                     - global.tr[hmm::TR_DD] * (num_d - 2) as f64
                                     - global.tr[hmm::TR_DM];
@@ -349,7 +348,7 @@ fn viterbi(
                     }
 
                     // from Start state
-                    let temp_alpha = alpha[t - 1][hmm::S_STATE] - locals[cg].e_m[0][from2][to];
+                    let temp_alpha = alpha[t - 1][hmm::S_STATE] - local.e_m[0][from2][to];
                     if temp_alpha < alpha[t][i] {
                         alpha[t][i] = temp_alpha;
                         path[t][i] = hmm::S_STATE;
@@ -358,7 +357,7 @@ fn viterbi(
                     // from M state
                     alpha[t][i] = alpha[t - 1][i - 1]
                         - global.tr[hmm::TR_MM]
-                        - locals[cg].e_m[i - hmm::M1_STATE][from2][to];
+                        - local.e_m[i - hmm::M1_STATE][from2][to];
                     path[t][i] = i - 1;
 
                     // from D state
@@ -374,7 +373,7 @@ fn viterbi(
                             if num_d > 0 {
                                 let temp_alpha = alpha[t - 1][j]
                                     - global.tr[hmm::TR_MD]
-                                    - locals[cg].e_m[i - hmm::M1_STATE][from2][to]
+                                    - local.e_m[i - hmm::M1_STATE][from2][to]
                                     - 0.25_f64.ln() * (num_d - 1) as f64
                                     - global.tr[hmm::TR_DD] * (num_d - 2) as f64
                                     - global.tr[hmm::TR_DM];
@@ -453,7 +452,7 @@ fn viterbi(
             {
                 // from Start state since this is actually a stop codon in minus strand
                 alpha[t][i] =
-                    alpha[t - 1][hmm::S_STATE_1] - locals[cg].e_m1[i - hmm::M1_STATE_1][from2][to];
+                    alpha[t - 1][hmm::S_STATE_1] - local.e_m1[i - hmm::M1_STATE_1][from2][to];
                 path[t][i] = hmm::S_STATE_1;
             } else {
                 if i == hmm::M1_STATE_1 {
@@ -461,7 +460,7 @@ fn viterbi(
                     alpha[t][i] = alpha[t - 1][hmm::M6_STATE_1]
                         - global.tr[hmm::TR_GG]
                         - global.tr[hmm::TR_MM]
-                        - locals[cg].e_m1[0][from2][to];
+                        - local.e_m1[0][from2][to];
                     path[t][i] = hmm::M6_STATE_1;
 
                     // from D state
@@ -476,7 +475,7 @@ fn viterbi(
                             };
                             if num_d > 0 {
                                 let temp_alpha = alpha[t - 1][j] - global.tr[hmm::TR_MD]
-                                               - locals[cg].e_m1[0][from2][to] // TODO different from forward but merge?
+                                               - local.e_m1[0][from2][to] // TODO different from forward but merge?
                                                - 0.25_f64.ln() * (num_d - 1) as f64
                                                - global.tr[hmm::TR_DD] * (num_d - 2) as f64
                                                - global.tr[hmm::TR_DM];
@@ -491,7 +490,7 @@ fn viterbi(
                     // from M state
                     alpha[t][i] = alpha[t - 1][i - 1]
                         - global.tr[hmm::TR_MM]
-                        - locals[cg].e_m1[i - hmm::M1_STATE_1][from2][to];
+                        - local.e_m1[i - hmm::M1_STATE_1][from2][to];
                     path[t][i] = i - 1;
 
                     // from D state
@@ -507,7 +506,7 @@ fn viterbi(
                             if num_d > 0 {
                                 let temp_alpha = alpha[t - 1][j]
                                     - global.tr[hmm::TR_MD]
-                                    - locals[cg].e_m1[i - hmm::M1_STATE_1][from2][to]
+                                    - local.e_m1[i - hmm::M1_STATE_1][from2][to]
                                     - 0.25_f64.ln() * (num_d - 1) as f64
                                     - global.tr[hmm::TR_DD] * (num_d - 2) as f64
                                     - global.tr[hmm::TR_DM];
@@ -586,7 +585,7 @@ fn viterbi(
         // non_coding state
         // TODO just a minimum of three
         alpha[t][hmm::R_STATE] =
-            alpha[t - 1][hmm::R_STATE] - locals[cg].tr_rr[from][to] - global.tr[hmm::TR_RR];
+            alpha[t - 1][hmm::R_STATE] - local.tr_rr[from][to] - global.tr[hmm::TR_RR];
         path[t][hmm::R_STATE] = hmm::R_STATE;
 
         let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr[hmm::TR_ER];
@@ -658,14 +657,14 @@ fn viterbi(
                     // bug reported by Yu-Wei ------ TODO 60 is the incomplete minimum length? can be merged?
                     for i in (t - 60)..=(t - 3) {
                         if i + 2 < seq.len() {
-                            start_freq -= locals[cg].tr_e[i + 60 - t]
+                            start_freq -= local.tr_e[i + 60 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                 } else if t > 3 {
                     for i in 0..=(t - 3) {
                         if i + 2 < seq.len() {
-                            sub_sum += locals[cg].tr_e[i + 60 - t]
+                            sub_sum += local.tr_e[i + 60 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
@@ -673,14 +672,14 @@ fn viterbi(
                     start_freq -= sub_sum;
                 }
 
-                let h_kd = locals[cg].dist_e[2]
-                    * (-1.0 * (start_freq - locals[cg].dist_e[1]).powi(2)
-                        / (locals[cg].dist_e[0]).powi(2)
+                let h_kd = local.dist_e[2]
+                    * (-1.0 * (start_freq - local.dist_e[1]).powi(2)
+                        / (local.dist_e[0]).powi(2)
                         / 2.0)
                         .exp();
-                let r_kd = locals[cg].dist_e[5]
-                    * (-1.0 * (start_freq - locals[cg].dist_e[4]).powi(2)
-                        / (locals[cg].dist_e[3]).powi(2)
+                let r_kd = local.dist_e[5]
+                    * (-1.0 * (start_freq - local.dist_e[4]).powi(2)
+                        / (local.dist_e[3]).powi(2)
                         / 2.0)
                         .exp();
                 alpha[t + 2][hmm::E_STATE] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
@@ -735,19 +734,19 @@ fn viterbi(
                 // TODO needs same 60-edgecase as above?
                 for i in 3..=60 {
                     if t + i + 2 < seq.len() {
-                        start_freq += locals[cg].tr_s1[i - 3]
+                        start_freq += local.tr_s1[i - 3]
                             [trinucleotide(seq[t + i], seq[t + i + 1], seq[t + i + 2])];
                     }
                 }
 
-                let h_kd = locals[cg].dist_s1[2]
-                    * (-1.0 * (start_freq - locals[cg].dist_s1[1]).powi(2)
-                        / (locals[cg].dist_s1[0]).powi(2)
+                let h_kd = local.dist_s1[2]
+                    * (-1.0 * (start_freq - local.dist_s1[1]).powi(2)
+                        / (local.dist_s1[0]).powi(2)
                         / 2.0)
                         .exp();
-                let r_kd = locals[cg].dist_s1[5]
-                    * (-1.0 * (start_freq - locals[cg].dist_s1[4]).powi(2)
-                        / (locals[cg].dist_s1[3]).powi(2)
+                let r_kd = local.dist_s1[5]
+                    * (-1.0 * (start_freq - local.dist_s1[4]).powi(2)
+                        / (local.dist_s1[3]).powi(2)
                         / 2.0)
                         .exp();
                 alpha[t + 2][hmm::S_STATE_1] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
@@ -799,14 +798,14 @@ fn viterbi(
                     // TODO why 30?
                     for i in (t - 30)..=(t + 30) {
                         if i + 2 < seq.len() {
-                            start_freq -= locals[cg].tr_s[i + 30 - t]
+                            start_freq -= local.tr_s[i + 30 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                 } else {
                     for i in 0..=(t + 30) {
                         if i + 2 < seq.len() {
-                            sub_sum += locals[cg].tr_s[i + 30 - t]
+                            sub_sum += local.tr_s[i + 30 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
@@ -814,14 +813,14 @@ fn viterbi(
                     start_freq -= sub_sum;
                 }
 
-                let h_kd = locals[cg].dist_s[2]
-                    * (-1.0 * (start_freq - locals[cg].dist_s[1]).powi(2)
-                        / (locals[cg].dist_s[0]).powi(2)
+                let h_kd = local.dist_s[2]
+                    * (-1.0 * (start_freq - local.dist_s[1]).powi(2)
+                        / (local.dist_s[0]).powi(2)
                         / 2.0)
                         .exp();
-                let r_kd = locals[cg].dist_s[5]
-                    * (-1.0 * (start_freq - locals[cg].dist_s[4]).powi(2)
-                        / (locals[cg].dist_s[3]).powi(2)
+                let r_kd = local.dist_s[5]
+                    * (-1.0 * (start_freq - local.dist_s[4]).powi(2)
+                        / (local.dist_s[3]).powi(2)
                         / 2.0)
                         .exp();
                 alpha[t + 2][hmm::S_STATE] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
@@ -863,14 +862,14 @@ fn viterbi(
                 if t >= 30 {
                     for i in (t - 30)..=(t + 30) {
                         if i + 2 < seq.len() {
-                            start_freq -= locals[cg].tr_e1[i + 30 - t]
+                            start_freq -= local.tr_e1[i + 30 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
                 } else {
                     for i in 0..=(t + 30) {
                         if i + 2 < seq.len() {
-                            sub_sum += locals[cg].tr_e1[i + 30 - t]
+                            sub_sum += local.tr_e1[i + 30 - t]
                                 [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
                         }
                     }
@@ -878,14 +877,14 @@ fn viterbi(
                     start_freq -= sub_sum;
                 }
 
-                let h_kd = locals[cg].dist_e1[2]
-                    * (-1.0 * (start_freq - locals[cg].dist_e1[1]).powi(2)
-                        / (locals[cg].dist_e1[0]).powi(2)
+                let h_kd = local.dist_e1[2]
+                    * (-1.0 * (start_freq - local.dist_e1[1]).powi(2)
+                        / (local.dist_e1[0]).powi(2)
                         / 2.0)
                         .exp();
-                let r_kd = locals[cg].dist_e1[5]
-                    * (-1.0 * (start_freq - locals[cg].dist_e1[4]).powi(2)
-                        / (locals[cg].dist_e1[3]).powi(2)
+                let r_kd = local.dist_e1[5]
+                    * (-1.0 * (start_freq - local.dist_e1[4]).powi(2)
+                        / (local.dist_e1[3]).powi(2)
                         / 2.0)
                         .exp();
                 alpha[t + 2][hmm::E_STATE_1] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
@@ -904,7 +903,7 @@ fn viterbi(
 
     let vpath = backtrack(&alpha, path);
     output(
-        &locals[cg],
+        &local,
         head,
         seq,
         whole_genome,
@@ -952,7 +951,7 @@ fn output(
     vpath: Vec<usize>,
     gene_len: usize,
     alpha: Vec<[f64; hmm::NUM_STATE]>,
-) -> Result<Vec<Gene>, Box<dyn Error>> {
+) -> Vec<Gene> {
     let mut genes = vec![];
     let mut codon_start = 0; // ternaire boolean?
     let mut start_t: isize = -1;
@@ -1207,7 +1206,7 @@ fn output(
         }
     }
 
-    Ok(genes)
+    genes
 }
 
 fn nt2int(nt: u8) -> Option<usize> {
