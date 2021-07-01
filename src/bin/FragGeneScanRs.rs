@@ -183,16 +183,17 @@ fn run<R: Read, W: Write>(
     for record in fasta::Reader::new(inputseqs).into_records() {
         let fasta::OwnedRecord { mut head, seq } = record?;
         head.truncate(head.partition_point(u8::is_ascii_whitespace));
-        let cg = count_cg_content(&seq);
-
-        let genes = viterbi(&global, &locals[cg], head, seq, whole_genome, formatted);
+        let genes = viterbi(
+            &global,
+            &locals[count_cg_content(&seq)],
+            head,
+            seq,
+            whole_genome,
+            formatted,
+        );
         for gene in genes {
             if let Some(metastream) = metastream {
-                fasta::OwnedRecord {
-                    head: gene.head,
-                    seq: gene.meta,
-                }
-                .write(metastream)?;
+                print_meta(&gene.head, &gene.meta, metastream)?;
             }
             if let Some(dnastream) = dnastream {
                 print_dna(&gene.dna_ffn, &gene.infohead, dnastream)?;
@@ -1300,12 +1301,11 @@ fn print_protein<W: Write>(
 }
 
 fn print_dna(dna: &Vec<u8>, head: &Vec<u8>, file: &mut File) -> Result<(), Box<dyn Error>> {
-    write!(
-        file,
-        "> {}\n{}\n",
-        std::str::from_utf8(head)?,
-        std::str::from_utf8(dna)?
-    )?;
+    fasta::OwnedRecord {
+        head: head.clone(),
+        seq: dna.clone(),
+    }
+    .write(file)?;
     Ok(())
 }
 
@@ -1326,4 +1326,13 @@ fn get_rc_dna(dna: &Vec<u8>) -> Vec<u8> {
             _ => b'x',
         })
         .collect()
+}
+
+fn print_meta(head: &Vec<u8>, seq: &Vec<u8>, file: &mut File) -> Result<(), Box<dyn Error>> {
+    fasta::OwnedRecord {
+        head: head.to_owned(),
+        seq: seq.to_owned(),
+    }
+    .write(file)?;
+    Ok(())
 }
