@@ -1104,7 +1104,7 @@ fn output<W: Write>(
                         .write(&mut *metastream)?;
                     }
 
-                    dna = seq[dna_start_t - 1..end_t].to_vec();
+                    // dna = seq[dna_start_t - 1..end_t].to_vec();
                     if let Some(aastream) = aastream {
                         let mut infohead = head.clone();
                         infohead.append(&mut format!("_{}_{}_+", dna_start_t, end_t).into_bytes());
@@ -1173,7 +1173,7 @@ fn output<W: Write>(
                         .write(&mut *metastream)?;
                     }
 
-                    dna = seq[dna_start_t_withstop - 1..end_t].to_vec();
+                    //dna = seq[dna_start_t_withstop - 1..end_t].to_vec();
                     if let Some(aastream) = aastream {
                         let mut infohead = head.clone();
                         infohead.append(
@@ -1217,8 +1217,8 @@ fn output<W: Write>(
             }
             dna.pop();
             dna_f.pop();
-            dna.push(seq[t]); // TODO original code does not dna_id += 1 here
-            dna_f.push(seq[t]); // TODO original code does not dna_f_id += 1 here
+            dna.push(seq[t]);
+            dna_f.push(seq[t]);
             prev_match = vpath[t];
         } else if codon_start != 0
             && ((vpath[t] >= hmm::I1_STATE && vpath[t] <= hmm::I6_STATE)
