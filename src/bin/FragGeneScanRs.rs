@@ -183,24 +183,24 @@ fn run<R: Read, W: Write>(
     let mut sequences = fasta::Reader::new(inputseqs);
     while let Some(record) = sequences.next() {
         let record = record?;
-        let genes = viterbi(
-            &global,
-            &locals,
-            record,
-            metastream,
-            whole_genome,
-            formatted,
-        )?;
+        let genes = viterbi(&global, &locals, record, whole_genome, formatted)?;
         for gene in genes {
+            if let Some(metastream) = metastream {
+                fasta::OwnedRecord {
+                    head: gene.head,
+                    seq: gene.meta,
+                }
+                .write(metastream)?;
+            }
             if let Some(dnastream) = dnastream {
-                print_dna(&gene.dna_ffn, &gene.head, dnastream)?;
+                print_dna(&gene.dna_ffn, &gene.infohead, dnastream)?;
             }
             if let Some(aastream) = aastream {
                 print_protein(
                     &gene.dna,
                     gene.forward_strand,
                     whole_genome,
-                    &gene.head,
+                    &gene.infohead,
                     aastream,
                 )?;
             }
@@ -223,7 +223,6 @@ fn viterbi(
     global: &hmm::Global,
     locals: &Vec<hmm::Local>,
     record: fasta::RefRecord,
-    metastream: &mut Option<File>,
     whole_genome: bool,
     formatted: bool,
 ) -> Result<Vec<Gene>, Box<dyn Error>> {
@@ -908,7 +907,6 @@ fn viterbi(
         &locals[cg],
         head,
         seq,
-        metastream,
         whole_genome,
         formatted,
         vpath,
@@ -938,6 +936,8 @@ fn backtrack(alpha: &Vec<[f64; hmm::NUM_STATE]>, path: Vec<[usize; hmm::NUM_STAT
 
 struct Gene {
     head: Vec<u8>,
+    infohead: Vec<u8>,
+    meta: Vec<u8>,
     dna: Vec<u8>,
     dna_ffn: Vec<u8>,
     forward_strand: bool,
@@ -947,7 +947,6 @@ fn output(
     local: &hmm::Local,
     head: Vec<u8>,
     seq: Vec<u8>,
-    metastream: &mut Option<File>,
     whole_genome: bool,
     formatted: bool,
     vpath: Vec<usize>,
@@ -1079,34 +1078,28 @@ fn output(
                         }
                     }
 
-                    if let Some(metastream) = metastream {
-                        fasta::OwnedRecord {
-                            head: head.clone(),
-                            seq: format!(
-                                "{}\t{}\t+\t{}\t{}\tI:{}\tD:{}",
-                                dna_start_t,
-                                end_t,
-                                frame,
-                                final_score,
-                                insert
-                                    .iter()
-                                    .map(|i: &usize| { format!("{},", i) })
-                                    .collect::<String>(),
-                                delete
-                                    .iter()
-                                    .map(|i: &usize| { format!("{},", i) })
-                                    .collect::<String>()
-                            )
-                            .into_bytes(),
-                        }
-                        .write(&mut *metastream)?;
-                    }
-
                     // dna = seq[dna_start_t - 1..end_t].to_vec();
                     let mut infohead = head.clone();
                     infohead.append(&mut format!("_{}_{}_+", dna_start_t, end_t).into_bytes());
                     genes.push(Gene {
-                        head: infohead,
+                        head: head.clone(),
+                        infohead: infohead,
+                        meta: format!(
+                            "{}\t{}\t+\t{}\t{}\tI:{}\tD:{}",
+                            dna_start_t,
+                            end_t,
+                            frame,
+                            final_score,
+                            insert
+                                .iter()
+                                .map(|i: &usize| { format!("{},", i) })
+                                .collect::<String>(),
+                            delete
+                                .iter()
+                                .map(|i: &usize| { format!("{},", i) })
+                                .collect::<String>()
+                        )
+                        .into_bytes(),
                         dna: dna.clone(),
                         dna_ffn: if formatted {
                             dna_f.clone()
@@ -1147,34 +1140,28 @@ fn output(
                         end_t = end_old + s_save;
                     }
 
-                    if let Some(metastream) = metastream {
-                        fasta::OwnedRecord {
-                            head: head.clone(),
-                            seq: format!(
-                                "{}\t{}\t-\t{}\t{}\tI:{}\tD:{}",
-                                dna_start_t,
-                                end_t,
-                                frame,
-                                final_score,
-                                insert
-                                    .iter()
-                                    .map(|i: &usize| { format!("{},", i) })
-                                    .collect::<String>(),
-                                delete
-                                    .iter()
-                                    .map(|i: &usize| { format!("{},", i) })
-                                    .collect::<String>()
-                            )
-                            .into_bytes(),
-                        }
-                        .write(&mut *metastream)?;
-                    }
-
                     let mut infohead = head.clone();
                     infohead
                         .append(&mut format!("_{}_{}_-", dna_start_t_withstop, end_t).into_bytes());
                     genes.push(Gene {
-                        head: infohead,
+                        head: head.clone(),
+                        infohead: infohead,
+                        meta: format!(
+                            "{}\t{}\t-\t{}\t{}\tI:{}\tD:{}",
+                            dna_start_t,
+                            end_t,
+                            frame,
+                            final_score,
+                            insert
+                                .iter()
+                                .map(|i: &usize| { format!("{},", i) })
+                                .collect::<String>(),
+                            delete
+                                .iter()
+                                .map(|i: &usize| { format!("{},", i) })
+                                .collect::<String>()
+                        )
+                        .into_bytes(),
                         dna: dna.clone(),
                         dna_ffn: get_rc_dna(if formatted { &dna_f } else { &dna }),
                         forward_strand: false,
