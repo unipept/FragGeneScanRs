@@ -1,12 +1,18 @@
-use std::error::Error;
 use std::fs::File;
+use std::io;
 use std::io::Write;
+
+extern crate anyhow;
+use anyhow::Result;
 
 extern crate seq_io;
 use seq_io::fasta;
 use seq_io::fasta::Record;
 
-use crate::dna::{trinucleotide_pep, ANTI_CODON_CODE, CODON_CODE};
+extern crate thiserror;
+use thiserror::Error;
+
+use crate::dna::{trinucleotide, ANTI_CODON_CODE, CODON_CODE};
 
 pub struct Gene {
     pub head: Vec<u8>,
@@ -23,7 +29,7 @@ pub struct Gene {
 }
 
 impl Gene {
-    pub fn print_meta(&self, file: &mut File) -> Result<(), Box<dyn Error>> {
+    pub fn print_meta(&self, file: &mut File) -> Result<(), GeneError> {
         fasta::OwnedRecord {
             head: self.head.to_owned(),
             seq: format!(
@@ -48,7 +54,7 @@ impl Gene {
         Ok(())
     }
 
-    pub fn print_dna(&self, file: &mut File) -> Result<(), Box<dyn Error>> {
+    pub fn print_dna(&self, file: &mut File) -> Result<(), GeneError> {
         fasta::OwnedRecord {
             head: format!(
                 "{}_{}_{}_{}",
@@ -68,16 +74,24 @@ impl Gene {
         &self,
         whole_genome: bool,
         file: &mut W,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), GeneError> {
         let mut protein: Vec<u8> = if self.forward_strand {
             self.dna
                 .chunks_exact(3)
-                .map(|c| CODON_CODE[trinucleotide_pep(c[0], c[1], c[2])])
+                .map(|c| {
+                    trinucleotide(c[0], c[1], c[2])
+                        .map(|i| CODON_CODE[i])
+                        .unwrap_or(b'X')
+                })
                 .collect()
         } else {
             self.dna
                 .rchunks_exact(3)
-                .map(|c| ANTI_CODON_CODE[trinucleotide_pep(c[0], c[1], c[2])])
+                .map(|c| {
+                    trinucleotide(c[0], c[1], c[2])
+                        .map(|i| ANTI_CODON_CODE[i])
+                        .unwrap_or(b'X')
+                })
                 .collect()
         };
         if protein.last() == Some(&b'*') {
@@ -89,21 +103,17 @@ impl Gene {
         // only consider two major alternative ones, GTG and TTG
         if whole_genome {
             if self.forward_strand {
-                let s = trinucleotide_pep(self.dna[0], self.dna[1], self.dna[2]);
-                if s == trinucleotide_pep(b'G', b'T', b'G')
-                    || s == trinucleotide_pep(b'T', b'T', b'G')
-                {
+                let s = trinucleotide(self.dna[0], self.dna[1], self.dna[2]);
+                if s == trinucleotide(b'G', b'T', b'G') || s == trinucleotide(b'T', b'T', b'G') {
                     protein[0] = b'M';
                 }
             } else {
-                let s = trinucleotide_pep(
+                let s = trinucleotide(
                     self.dna[self.dna.len() - 3],
                     self.dna[self.dna.len() - 2],
                     self.dna[self.dna.len() - 1],
                 );
-                if s == trinucleotide_pep(b'C', b'A', b'C')
-                    || s == trinucleotide_pep(b'C', b'A', b'A')
-                {
+                if s == trinucleotide(b'C', b'A', b'C') || s == trinucleotide(b'C', b'A', b'A') {
                     protein[0] = b'M';
                 }
             }
@@ -124,4 +134,12 @@ impl Gene {
 
         Ok(())
     }
+}
+
+#[derive(Error, Debug)]
+pub enum GeneError {
+    #[error("could not write to file")]
+    IoError(#[from] io::Error),
+    #[error("could not convert header back to UTF-8")]
+    Utf8Error(#[from] std::str::Utf8Error),
 }

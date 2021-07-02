@@ -438,14 +438,14 @@ pub fn viterbi(
                     for i in (t - 60)..=(t - 3) {
                         if i + 2 < seq.len() {
                             start_freq -= local.tr_e[i + 60 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
                         }
                     }
                 } else if t > 3 {
                     for i in 0..=(t - 3) {
                         if i + 2 < seq.len() {
                             sub_sum += local.tr_e[i + 60 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
                         }
                     }
                     sub_sum = sub_sum * 58.0 / (t - 3 + 1) as f64;
@@ -514,8 +514,12 @@ pub fn viterbi(
                 // TODO needs same 60-edgecase as above?
                 for i in 3..=60 {
                     if t + i + 2 < seq.len() {
-                        start_freq += local.tr_s1[i - 3]
-                            [trinucleotide(seq[t + i], seq[t + i + 1], seq[t + i + 2])];
+                        start_freq += local.tr_s1[i - 3][trinucleotide(
+                            seq[t + i],
+                            seq[t + i + 1],
+                            seq[t + i + 2],
+                        )
+                        .unwrap_or(0)];
                     }
                 }
 
@@ -579,14 +583,14 @@ pub fn viterbi(
                     for i in (t - 30)..=(t + 30) {
                         if i + 2 < seq.len() {
                             start_freq -= local.tr_s[i + 30 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
                         }
                     }
                 } else {
                     for i in 0..=(t + 30) {
                         if i + 2 < seq.len() {
                             sub_sum += local.tr_s[i + 30 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
                         }
                     }
                     sub_sum *= 61.0 / (t + 30 + 1) as f64;
@@ -643,14 +647,14 @@ pub fn viterbi(
                     for i in (t - 30)..=(t + 30) {
                         if i + 2 < seq.len() {
                             start_freq -= local.tr_e1[i + 30 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
                         }
                     }
                 } else {
                     for i in 0..=(t + 30) {
                         if i + 2 < seq.len() {
                             sub_sum += local.tr_e1[i + 30 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2])];
+                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
                         }
                     }
                     sub_sum *= 61.0 / (t + 30 + 1) as f64;
@@ -826,8 +830,12 @@ fn output(
                                 let utr = &seq[start_old - 1 - s - 30..start_old - 1 - s - 30 + 63];
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
-                                    let idx = trinucleotide(utr[j], utr[j + 1], utr[j + 2]);
-                                    freq_sum -= local.tr_s[j][idx];
+                                    freq_sum -= local.tr_s[j][trinucleotide(
+                                        utr[j],
+                                        utr[j + 1],
+                                        utr[j + 2],
+                                    )
+                                    .unwrap_or(0)];
                                 }
                                 if s == 0 {
                                     e_save = freq_sum;
@@ -878,8 +886,12 @@ fn output(
                                 let utr = &seq[end_old - 1 - 2 + s - 30..end_old + s + 30];
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
-                                    let idx = trinucleotide(utr[j], utr[j + 1], utr[j + 2]);
-                                    freq_sum -= local.tr_e1[j][idx]; // TODO stop1? (their note)
+                                    freq_sum -= local.tr_e1[j][trinucleotide(
+                                        utr[j],
+                                        utr[j + 1],
+                                        utr[j + 2],
+                                    )
+                                    .unwrap_or(0)]; // TODO stop1? (their note)
                                 }
                                 if s == 0 || freq_sum < e_save {
                                     e_save = freq_sum;
