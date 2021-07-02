@@ -1,11 +1,13 @@
 //! FragGeneScanRs executable
 #![allow(non_snake_case)]
 
-use std::error::Error;
 use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
 use std::path::PathBuf;
+
+extern crate anyhow;
+use anyhow::Result;
 
 extern crate clap;
 use clap::{App, Arg};
@@ -18,7 +20,7 @@ use frag_gene_scan_rs::dna::count_cg_content;
 use frag_gene_scan_rs::hmm;
 use frag_gene_scan_rs::viterbi::viterbi;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     let matches = App::new("FragGeneScanRs")
         .version("0.0.1")
         .author("Felix Van der Jeugt <felix.vanderjeugt@ugent.be>")
@@ -179,7 +181,7 @@ fn run<R: Read, W: Write>(
     whole_genome: bool,
     formatted: bool,
     _thread_num: usize,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     for record in fasta::Reader::new(inputseqs).into_records() {
         let fasta::OwnedRecord { mut head, seq } = record?;
         head = head.into_iter().take_while(u8::is_ascii_graphic).collect();

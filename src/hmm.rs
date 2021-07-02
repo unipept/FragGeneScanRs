@@ -3,10 +3,6 @@ use std::io::{self, BufRead, BufReader, Lines};
 use std::path::PathBuf;
 use std::str::FromStr;
 
-extern crate anyhow;
-use anyhow::Context;
-use anyhow::Result;
-
 extern crate thiserror;
 use thiserror::Error;
 
@@ -104,7 +100,7 @@ pub enum TrainingDataError {
 pub fn get_train_from_file(
     train_dir: PathBuf,
     filename: PathBuf,
-) -> Result<(Box<Global>, Vec<Local>)> {
+) -> Result<(Box<Global>, Vec<Local>), TrainingDataError> {
     let mut global: Box<Global> = Box::new(Default::default());
     let mut locals: Vec<Local> = Vec::with_capacity(CG);
     for _ in 0..CG {
@@ -157,25 +153,31 @@ fn next_line(
 fn parse_float(
     filename: &PathBuf,
     part: &String,
+    line: &String,
+    string: &str,
+) -> Result<f64, TrainingDataError> {
+    f64::from_str(string).map_err(|e| {
+        TrainingDataError::MalformedValue(filename.to_owned(), part.to_owned(), line.to_owned(), e)
+    })
+}
+
+fn parse_float_col(
+    filename: &PathBuf,
+    part: &String,
     line: String,
     column: usize,
 ) -> Result<f64, TrainingDataError> {
     let v: Vec<&str> = line.split_whitespace().collect();
-    f64::from_str(v[column])
-        .map_err(|e| {
-            TrainingDataError::MalformedValue(filename.to_owned(), part.to_owned(), line, e)
-        })
-        .map(f64::ln)
+    parse_float(filename, part, &line, v[column])
 }
 
 fn read_transitions(global: &mut Global, filename: PathBuf) -> Result<(), TrainingDataError> {
     let mut lines = lines_from_file(&filename)?;
-    let mut line: String;
     let mut header;
 
     header = next_line(&filename, &mut lines)?;
     for _ in 0..NUM_TRANSITIONS {
-        line = next_line(&filename, &mut lines)?;
+        let line = next_line(&filename, &mut lines)?;
         let l = match line.split_whitespace().collect::<Vec<&str>>()[0] {
             "MM" => 0,
             "MI" => 1,
@@ -193,14 +195,14 @@ fn read_transitions(global: &mut Global, filename: PathBuf) -> Result<(), Traini
             "ES1" => 13,
             _ => Err(TrainingDataError::UnknownTransitionState)?,
         };
-        global.tr[l] = parse_float(&filename, &header, line, 1)?;
+        global.tr[l] = parse_float_col(&filename, &header, line, 1)?.ln();
     }
 
     header = next_line(&filename, &mut lines)?;
     for i in 0..ACGT {
         for j in 0..ACGT {
             global.tr_mi[i][j] =
-                parse_float(&filename, &header, next_line(&filename, &mut lines)?, 2)?;
+                parse_float_col(&filename, &header, next_line(&filename, &mut lines)?, 2)?.ln();
         }
     }
 
@@ -208,38 +210,29 @@ fn read_transitions(global: &mut Global, filename: PathBuf) -> Result<(), Traini
     for i in 0..ACGT {
         for j in 0..ACGT {
             global.tr_ii[i][j] =
-                parse_float(&filename, &header, next_line(&filename, &mut lines)?, 2)?;
+                parse_float_col(&filename, &header, next_line(&filename, &mut lines)?, 2)?.ln();
         }
     }
 
     header = next_line(&filename, &mut lines)?;
     for i in 0..NUM_STATE {
-        global.pi[i] = parse_float(&filename, &header, next_line(&filename, &mut lines)?, 1)?;
+        global.pi[i] =
+            parse_float_col(&filename, &header, next_line(&filename, &mut lines)?, 1)?.ln();
     }
 
     Ok(())
 }
 
-fn read_m_transitions(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
-    let mut lines =
-        io::BufReader::new(File::open(&filename).map_err(|e| TrainingDataError::Io(filename, e))?)
-            .lines();
-    let mut line: String;
-
+fn read_m_transitions(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
+    let mut lines = lines_from_file(&filename)?;
     for cg in 0..CG {
-        lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??; // Transition header
+        let header = next_line(&filename, &mut lines)?;
         for p in 0..PERIOD {
             for c in 0..ACGTACGT {
-                line = lines
-                    .next()
-                    .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+                let line = next_line(&filename, &mut lines)?;
                 let v: Vec<&str> = line.split_whitespace().collect();
                 for e in 0..ACGT {
-                    locals[cg].e_m[p][c][e] = f64::from_str(v[e])
-                        .context("Could not read gene transitions")?
-                        .ln();
+                    locals[cg].e_m[p][c][e] = parse_float(&filename, &header, &line, v[e])?.ln();
                 }
             }
         }
@@ -248,24 +241,19 @@ fn read_m_transitions(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> 
     Ok(())
 }
 
-fn read_m1_transitions(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
-    let mut lines = io::BufReader::new(File::open(filename)?).lines();
-    let mut line: String;
-
+fn read_m1_transitions(
+    locals: &mut Vec<Local>,
+    filename: PathBuf,
+) -> Result<(), TrainingDataError> {
+    let mut lines = lines_from_file(&filename)?;
     for cg in 0..CG {
-        lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??; // Transition header
+        let header = next_line(&filename, &mut lines)?;
         for p in 0..PERIOD {
             for c in 0..ACGTACGT {
-                line = lines
-                    .next()
-                    .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+                let line = next_line(&filename, &mut lines)?;
                 let v: Vec<&str> = line.split_whitespace().collect();
                 for e in 0..ACGT {
-                    locals[cg].e_m1[p][c][e] = f64::from_str(v[e])
-                        .context("Could not read rgene transitions")?
-                        .ln();
+                    locals[cg].e_m1[p][c][e] = parse_float(&filename, &header, &line, v[e])?.ln();
                 }
             }
         }
@@ -274,23 +262,15 @@ fn read_m1_transitions(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()>
     Ok(())
 }
 
-fn read_noncoding(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
-    let mut lines = io::BufReader::new(File::open(filename)?).lines();
-    let mut line: String;
-
+fn read_noncoding(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
+    let mut lines = lines_from_file(&filename)?;
     for cg in 0..CG {
-        lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??; // Transition header
+        let header = next_line(&filename, &mut lines)?;
         for e1 in 0..ACGT {
-            line = lines
-                .next()
-                .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+            let line = next_line(&filename, &mut lines)?;
             let v: Vec<&str> = line.split_whitespace().collect();
             for e2 in 0..ACGT {
-                locals[cg].tr_rr[e1][e2] = f64::from_str(v[e2])
-                    .context("Could not read nonecoding transitions")?
-                    .ln();
+                locals[cg].tr_rr[e1][e2] = parse_float(&filename, &header, &line, v[e2])?.ln();
             }
         }
     }
@@ -298,23 +278,15 @@ fn read_noncoding(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn read_start(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
-    let mut lines = io::BufReader::new(File::open(filename)?).lines();
-    let mut line: String;
-
+fn read_start(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
+    let mut lines = lines_from_file(&filename)?;
     for cg in 0..CG {
-        lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??; // Transition header
+        let header = next_line(&filename, &mut lines)?;
         for j in 0..61 {
-            line = lines
-                .next()
-                .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+            let line = next_line(&filename, &mut lines)?;
             let v: Vec<&str> = line.split_whitespace().collect();
             for k in 0..64 {
-                locals[cg].tr_s[j][k] = f64::from_str(v[k])
-                    .context("Could not read start transitions")?
-                    .ln();
+                locals[cg].tr_s[j][k] = parse_float(&filename, &header, &line, v[k])?.ln();
             }
         }
     }
@@ -322,23 +294,15 @@ fn read_start(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn read_stop1(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
-    let mut lines = io::BufReader::new(File::open(filename)?).lines();
-    let mut line: String;
-
+fn read_stop1(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
+    let mut lines = lines_from_file(&filename)?;
     for cg in 0..CG {
-        lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??; // Transition header
+        let header = next_line(&filename, &mut lines)?;
         for j in 0..61 {
-            line = lines
-                .next()
-                .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+            let line = next_line(&filename, &mut lines)?;
             let v: Vec<&str> = line.split_whitespace().collect();
             for k in 0..64 {
-                locals[cg].tr_e1[j][k] = f64::from_str(v[k])
-                    .context("Could not read stop1 transitions")?
-                    .ln();
+                locals[cg].tr_e1[j][k] = parse_float(&filename, &header, &line, v[k])?.ln();
             }
         }
     }
@@ -346,23 +310,15 @@ fn read_stop1(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn read_stop(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
-    let mut lines = io::BufReader::new(File::open(filename)?).lines();
-    let mut line: String;
-
+fn read_stop(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
+    let mut lines = lines_from_file(&filename)?;
     for cg in 0..CG {
-        lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??; // Transition header
+        let header = next_line(&filename, &mut lines)?;
         for j in 0..61 {
-            line = lines
-                .next()
-                .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+            let line = next_line(&filename, &mut lines)?;
             let v: Vec<&str> = line.split_whitespace().collect();
             for k in 0..64 {
-                locals[cg].tr_e[j][k] = f64::from_str(v[k])
-                    .context("Could not read stop transitions")?
-                    .ln();
+                locals[cg].tr_e[j][k] = parse_float(&filename, &header, &line, v[k])?.ln();
             }
         }
     }
@@ -370,23 +326,15 @@ fn read_stop(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn read_start1(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
-    let mut lines = io::BufReader::new(File::open(filename)?).lines();
-    let mut line: String;
-
+fn read_start1(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
+    let mut lines = lines_from_file(&filename)?;
     for cg in 0..CG {
-        lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??; // Transition header
+        let header = next_line(&filename, &mut lines)?;
         for j in 0..61 {
-            line = lines
-                .next()
-                .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+            let line = next_line(&filename, &mut lines)?;
             let v: Vec<&str> = line.split_whitespace().collect();
             for k in 0..64 {
-                locals[cg].tr_s1[j][k] = f64::from_str(v[k])
-                    .context("Could not read start1 transitions")?
-                    .ln();
+                locals[cg].tr_s1[j][k] = parse_float(&filename, &header, &line, v[k])?.ln();
             }
         }
     }
@@ -394,46 +342,34 @@ fn read_start1(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn read_pwm(locals: &mut Vec<Local>, filename: PathBuf) -> Result<()> {
-    let mut lines = io::BufReader::new(File::open(filename)?).lines();
+fn read_pwm(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
+    let mut lines = lines_from_file(&filename)?;
     let mut line: String;
-
     for cg in 0..CG {
-        lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??; // Transition header
-
-        line = lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+        let header = next_line(&filename, &mut lines)?;
+        line = next_line(&filename, &mut lines)?;
         let v: Vec<&str> = line.split_whitespace().collect();
         for j in 0..6 {
-            locals[cg].dist_s[j] =
-                f64::from_str(v[j]).context("Could not read distS transitions")?;
+            locals[cg].dist_s[j] = parse_float(&filename, &header, &line, v[j])?;
+            // no ln
         }
-        line = lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+        line = next_line(&filename, &mut lines)?;
         let v: Vec<&str> = line.split_whitespace().collect();
         for j in 0..6 {
-            locals[cg].dist_e[j] =
-                f64::from_str(v[j]).context("Could not read distE transitions")?;
+            locals[cg].dist_e[j] = parse_float(&filename, &header, &line, v[j])?;
+            // no ln
         }
-        line = lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+        line = next_line(&filename, &mut lines)?;
         let v: Vec<&str> = line.split_whitespace().collect();
         for j in 0..6 {
-            locals[cg].dist_s1[j] =
-                f64::from_str(v[j]).context("Could not read distS1 transitions")?;
+            locals[cg].dist_s1[j] = parse_float(&filename, &header, &line, v[j])?;
+            // no ln
         }
-        line = lines
-            .next()
-            .ok_or(TrainingDataError::IncompleteTrainingFile)??;
+        line = next_line(&filename, &mut lines)?;
         let v: Vec<&str> = line.split_whitespace().collect();
         for j in 0..6 {
-            locals[cg].dist_e1[j] =
-                f64::from_str(v[j]).context("Could not read distE1 transitions")?;
+            locals[cg].dist_e1[j] = parse_float(&filename, &header, &line, v[j])?;
+            // no ln
         }
     }
 

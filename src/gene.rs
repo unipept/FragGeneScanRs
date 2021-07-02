@@ -2,9 +2,6 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 
-extern crate anyhow;
-use anyhow::Result;
-
 extern crate seq_io;
 use seq_io::fasta;
 use seq_io::fasta::Record;
