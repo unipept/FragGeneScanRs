@@ -182,7 +182,7 @@ fn run<R: Read, W: Write>(
 ) -> Result<(), Box<dyn Error>> {
     for record in fasta::Reader::new(inputseqs).into_records() {
         let fasta::OwnedRecord { mut head, seq } = record?;
-        head.truncate(head.partition_point(u8::is_ascii_whitespace));
+        head = head.into_iter().take_while(u8::is_ascii_graphic).collect();
         let genes = viterbi(
             &global,
             &locals[count_cg_content(&seq)],
