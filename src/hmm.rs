@@ -6,7 +6,16 @@ use std::str::FromStr;
 extern crate thiserror;
 use thiserror::Error;
 
+use crate::dna::{ACGT, BI_ACGT, CG_MAX, CG_MIN, TRI_ACGT};
+
 pub const NUM_STATE: usize = 29;
+
+// 19 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, EnumIter, EnumCount)]
+// 20 #[allow(non_camel_case_types)]
+// 21 pub enum State {
+// 22     S = 0,
+// 23     E = 1,
+// 24     R = 2,
 
 pub const S_STATE: usize = 0;
 pub const E_STATE: usize = 1;
@@ -41,48 +50,50 @@ pub const NOSTATE: usize = 30;
 
 const NUM_TRANSITIONS: usize = 14;
 
-pub const TR_MM: usize = 0;
-pub const TR_MI: usize = 1;
-pub const TR_MD: usize = 2;
-pub const TR_II: usize = 3;
-pub const TR_IM: usize = 4;
-pub const TR_DD: usize = 5;
-pub const TR_DM: usize = 6;
-pub const TR_GE: usize = 7;
-pub const TR_GG: usize = 8;
-pub const TR_ER: usize = 9;
-pub const TR_RS: usize = 10;
-pub const TR_RR: usize = 11;
-pub const TR_ES: usize = 12;
-pub const TR_ES1: usize = 13;
+#[derive(Default)]
+pub struct Transition {
+    pub mm: f64,
+    pub mi: f64,
+    pub md: f64,
+    pub ii: f64,
+    pub im: f64,
+    pub dd: f64,
+    pub dm: f64,
+    pub ge: f64,
+    pub gg: f64,
+    pub er: f64,
+    pub rs: f64,
+    pub rr: f64,
+    pub es: f64,
+    pub es1: f64,
+}
 
-const CG: usize = 44;
-const ACGT: usize = 4;
 const PERIOD: usize = 6;
-const ACGTACGT: usize = 4 * 4;
+const WINDOW: usize = 61;
+
 #[derive(Default)]
 pub struct Global {
     pub pi: [f64; NUM_STATE],
-    pub tr: [f64; NUM_TRANSITIONS],
+    pub tr: Transition,
     pub tr_ii: [[f64; ACGT]; ACGT],
     pub tr_mi: [[f64; ACGT]; ACGT],
 }
 
 pub struct Local {
-    pub e_m: [[[f64; ACGT]; ACGTACGT]; PERIOD],
-    pub e_m1: [[[f64; ACGT]; ACGTACGT]; PERIOD],
+    pub e_m: [[[f64; ACGT]; BI_ACGT]; PERIOD],
+    pub e_m1: [[[f64; ACGT]; BI_ACGT]; PERIOD],
 
     pub tr_rr: [[f64; ACGT]; ACGT],
 
-    pub tr_s: [[f64; 64]; 61],
-    pub tr_e: [[f64; 64]; 61],
-    pub tr_s1: [[f64; 64]; 61],
-    pub tr_e1: [[f64; 64]; 61],
+    pub tr_s: [[f64; TRI_ACGT]; WINDOW],
+    pub tr_e: [[f64; TRI_ACGT]; WINDOW],
+    pub tr_s1: [[f64; TRI_ACGT]; WINDOW],
+    pub tr_e1: [[f64; TRI_ACGT]; WINDOW],
 
-    pub dist_s: [f64; 6],
-    pub dist_e: [f64; 6],
-    pub dist_s1: [f64; 6],
-    pub dist_e1: [f64; 6],
+    pub dist_s: [f64; PERIOD],
+    pub dist_e: [f64; PERIOD],
+    pub dist_s1: [f64; PERIOD],
+    pub dist_e1: [f64; PERIOD],
 }
 
 #[derive(Error, Debug)]
@@ -102,23 +113,22 @@ pub fn get_train_from_file(
     filename: PathBuf,
 ) -> Result<(Box<Global>, Vec<Local>), TrainingDataError> {
     let mut global: Box<Global> = Box::new(Default::default());
-    let mut locals: Vec<Local> = Vec::with_capacity(CG);
-    for _ in 0..CG {
-        locals.push(Local {
-            e_m: [[[0.0; ACGT]; ACGTACGT]; PERIOD],
-            e_m1: [[[0.0; ACGT]; ACGTACGT]; PERIOD],
+    let mut locals: Vec<Local> = (0..CG_MAX - CG_MIN)
+        .map(|_| Local {
+            e_m: [[[0.0; ACGT]; BI_ACGT]; PERIOD],
+            e_m1: [[[0.0; ACGT]; BI_ACGT]; PERIOD],
             tr_rr: [[0.0; ACGT]; ACGT],
-            tr_s: [[0.0; 64]; 61],
-            tr_e: [[0.0; 64]; 61],
-            tr_s1: [[0.0; 64]; 61],
-            tr_e1: [[0.0; 64]; 61],
+            tr_s: [[0.0; TRI_ACGT]; WINDOW],
+            tr_e: [[0.0; TRI_ACGT]; WINDOW],
+            tr_s1: [[0.0; TRI_ACGT]; WINDOW],
+            tr_e1: [[0.0; TRI_ACGT]; WINDOW],
 
-            dist_s: [0.0; 6],
-            dist_e: [0.0; 6],
-            dist_s1: [0.0; 6],
-            dist_e1: [0.0; 6],
-        });
-    }
+            dist_s: [0.0; PERIOD],
+            dist_e: [0.0; PERIOD],
+            dist_s1: [0.0; PERIOD],
+            dist_e1: [0.0; PERIOD],
+        })
+        .collect();
 
     read_transitions(&mut global, train_dir.join(filename))?;
     read_m_transitions(&mut locals, train_dir.join("gene"))?;
@@ -178,24 +188,25 @@ fn read_transitions(global: &mut Global, filename: PathBuf) -> Result<(), Traini
     header = next_line(&filename, &mut lines)?;
     for _ in 0..NUM_TRANSITIONS {
         let line = next_line(&filename, &mut lines)?;
-        let l = match line.split_whitespace().collect::<Vec<&str>>()[0] {
-            "MM" => 0,
-            "MI" => 1,
-            "MD" => 2,
-            "II" => 3,
-            "IM" => 4,
-            "DD" => 5,
-            "DM" => 6,
-            "GE" => 7,
-            "GG" => 8,
-            "ER" => 9,
-            "RS" => 10,
-            "RR" => 11,
-            "ES" => 12,
-            "ES1" => 13,
+        let v = line.split_whitespace().collect::<Vec<&str>>();
+        let value = parse_float(&filename, &header, &line, v[1])?.ln();
+        match v[0] {
+            "MM" => global.tr.mm = value,
+            "MI" => global.tr.mi = value,
+            "MD" => global.tr.md = value,
+            "II" => global.tr.ii = value,
+            "IM" => global.tr.im = value,
+            "DD" => global.tr.dd = value,
+            "DM" => global.tr.dm = value,
+            "GE" => global.tr.ge = value,
+            "GG" => global.tr.gg = value,
+            "ER" => global.tr.er = value,
+            "RS" => global.tr.rs = value,
+            "RR" => global.tr.rr = value,
+            "ES" => global.tr.es = value,
+            "ES1" => global.tr.es1 = value,
             _ => Err(TrainingDataError::UnknownTransitionState)?,
-        };
-        global.tr[l] = parse_float_col(&filename, &header, line, 1)?.ln();
+        }
     }
 
     header = next_line(&filename, &mut lines)?;
@@ -225,10 +236,10 @@ fn read_transitions(global: &mut Global, filename: PathBuf) -> Result<(), Traini
 
 fn read_m_transitions(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
     let mut lines = lines_from_file(&filename)?;
-    for cg in 0..CG {
+    for cg in 0..(CG_MAX - CG_MIN) {
         let header = next_line(&filename, &mut lines)?;
         for p in 0..PERIOD {
-            for c in 0..ACGTACGT {
+            for c in 0..BI_ACGT {
                 let line = next_line(&filename, &mut lines)?;
                 let v: Vec<&str> = line.split_whitespace().collect();
                 for e in 0..ACGT {
@@ -246,10 +257,10 @@ fn read_m1_transitions(
     filename: PathBuf,
 ) -> Result<(), TrainingDataError> {
     let mut lines = lines_from_file(&filename)?;
-    for cg in 0..CG {
+    for cg in 0..(CG_MAX - CG_MIN) {
         let header = next_line(&filename, &mut lines)?;
         for p in 0..PERIOD {
-            for c in 0..ACGTACGT {
+            for c in 0..BI_ACGT {
                 let line = next_line(&filename, &mut lines)?;
                 let v: Vec<&str> = line.split_whitespace().collect();
                 for e in 0..ACGT {
@@ -264,7 +275,7 @@ fn read_m1_transitions(
 
 fn read_noncoding(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
     let mut lines = lines_from_file(&filename)?;
-    for cg in 0..CG {
+    for cg in 0..(CG_MAX - CG_MIN) {
         let header = next_line(&filename, &mut lines)?;
         for e1 in 0..ACGT {
             let line = next_line(&filename, &mut lines)?;
@@ -280,12 +291,12 @@ fn read_noncoding(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), Trai
 
 fn read_start(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
     let mut lines = lines_from_file(&filename)?;
-    for cg in 0..CG {
+    for cg in 0..(CG_MAX - CG_MIN) {
         let header = next_line(&filename, &mut lines)?;
-        for j in 0..61 {
+        for j in 0..WINDOW {
             let line = next_line(&filename, &mut lines)?;
             let v: Vec<&str> = line.split_whitespace().collect();
-            for k in 0..64 {
+            for k in 0..TRI_ACGT {
                 locals[cg].tr_s[j][k] = parse_float(&filename, &header, &line, v[k])?.ln();
             }
         }
@@ -296,12 +307,12 @@ fn read_start(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), Training
 
 fn read_stop1(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
     let mut lines = lines_from_file(&filename)?;
-    for cg in 0..CG {
+    for cg in 0..(CG_MAX - CG_MIN) {
         let header = next_line(&filename, &mut lines)?;
-        for j in 0..61 {
+        for j in 0..WINDOW {
             let line = next_line(&filename, &mut lines)?;
             let v: Vec<&str> = line.split_whitespace().collect();
-            for k in 0..64 {
+            for k in 0..TRI_ACGT {
                 locals[cg].tr_e1[j][k] = parse_float(&filename, &header, &line, v[k])?.ln();
             }
         }
@@ -312,12 +323,12 @@ fn read_stop1(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), Training
 
 fn read_stop(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
     let mut lines = lines_from_file(&filename)?;
-    for cg in 0..CG {
+    for cg in 0..(CG_MAX - CG_MIN) {
         let header = next_line(&filename, &mut lines)?;
-        for j in 0..61 {
+        for j in 0..WINDOW {
             let line = next_line(&filename, &mut lines)?;
             let v: Vec<&str> = line.split_whitespace().collect();
-            for k in 0..64 {
+            for k in 0..TRI_ACGT {
                 locals[cg].tr_e[j][k] = parse_float(&filename, &header, &line, v[k])?.ln();
             }
         }
@@ -328,12 +339,12 @@ fn read_stop(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingD
 
 fn read_start1(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
     let mut lines = lines_from_file(&filename)?;
-    for cg in 0..CG {
+    for cg in 0..(CG_MAX - CG_MIN) {
         let header = next_line(&filename, &mut lines)?;
-        for j in 0..61 {
+        for j in 0..WINDOW {
             let line = next_line(&filename, &mut lines)?;
             let v: Vec<&str> = line.split_whitespace().collect();
-            for k in 0..64 {
+            for k in 0..TRI_ACGT {
                 locals[cg].tr_s1[j][k] = parse_float(&filename, &header, &line, v[k])?.ln();
             }
         }
@@ -345,29 +356,29 @@ fn read_start1(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), Trainin
 fn read_pwm(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
     let mut lines = lines_from_file(&filename)?;
     let mut line: String;
-    for cg in 0..CG {
+    for cg in 0..(CG_MAX - CG_MIN) {
         let header = next_line(&filename, &mut lines)?;
         line = next_line(&filename, &mut lines)?;
         let v: Vec<&str> = line.split_whitespace().collect();
-        for j in 0..6 {
+        for j in 0..PERIOD {
             locals[cg].dist_s[j] = parse_float(&filename, &header, &line, v[j])?;
             // no ln
         }
         line = next_line(&filename, &mut lines)?;
         let v: Vec<&str> = line.split_whitespace().collect();
-        for j in 0..6 {
+        for j in 0..PERIOD {
             locals[cg].dist_e[j] = parse_float(&filename, &header, &line, v[j])?;
             // no ln
         }
         line = next_line(&filename, &mut lines)?;
         let v: Vec<&str> = line.split_whitespace().collect();
-        for j in 0..6 {
+        for j in 0..PERIOD {
             locals[cg].dist_s1[j] = parse_float(&filename, &header, &line, v[j])?;
             // no ln
         }
         line = next_line(&filename, &mut lines)?;
         let v: Vec<&str> = line.split_whitespace().collect();
-        for j in 0..6 {
+        for j in 0..PERIOD {
             locals[cg].dist_e1[j] = parse_float(&filename, &header, &line, v[j])?;
             // no ln
         }

@@ -97,8 +97,8 @@ pub fn viterbi(
                 if i == hmm::M1_STATE {
                     // from M state
                     alpha[t][i] = alpha[t - 1][hmm::M6_STATE]
-                        - global.tr[hmm::TR_GG]
-                        - global.tr[hmm::TR_MM]
+                        - global.tr.gg
+                        - global.tr.mm
                         - local.e_m[0][from2][to];
                     path[t][i] = hmm::M6_STATE;
 
@@ -114,11 +114,11 @@ pub fn viterbi(
                             };
                             if num_d > 0 {
                                 let temp_alpha = alpha[t - 1][j]
-                                    - global.tr[hmm::TR_MD]
+                                    - global.tr.md
                                     - local.e_m[0][from2][to]
                                     - 0.25_f64.ln() * (num_d - 1) as f64
-                                    - global.tr[hmm::TR_DD] * (num_d - 2) as f64
-                                    - global.tr[hmm::TR_DM];
+                                    - global.tr.dd * (num_d - 2) as f64
+                                    - global.tr.dm;
                                 if temp_alpha < alpha[t][i] {
                                     alpha[t][i] = temp_alpha;
                                     path[t][i] = j;
@@ -136,7 +136,7 @@ pub fn viterbi(
                 } else {
                     // from M state
                     alpha[t][i] = alpha[t - 1][i - 1]
-                        - global.tr[hmm::TR_MM]
+                        - global.tr.mm
                         - local.e_m[i - hmm::M1_STATE][from2][to];
                     path[t][i] = i - 1;
 
@@ -152,11 +152,11 @@ pub fn viterbi(
                             };
                             if num_d > 0 {
                                 let temp_alpha = alpha[t - 1][j]
-                                    - global.tr[hmm::TR_MD]
+                                    - global.tr.md
                                     - local.e_m[i - hmm::M1_STATE][from2][to]
                                     - 0.25_f64.ln() * (num_d - 1) as f64
-                                    - global.tr[hmm::TR_DD] * (num_d - 2) as f64
-                                    - global.tr[hmm::TR_DM];
+                                    - global.tr.dd * (num_d - 2) as f64
+                                    - global.tr.dm;
                                 if temp_alpha < alpha[t][i] {
                                     alpha[t][i] = temp_alpha;
                                     path[t][i] = j;
@@ -190,7 +190,7 @@ pub fn viterbi(
                         || (seq[temp_i[j - hmm::I1_STATE]] == b'G' && seq[t] == b'A'))
                 {
                 } else {
-                    let temp_alpha = alpha[t - 1][j] - global.tr[hmm::TR_IM] - 0.25_f64.ln();
+                    let temp_alpha = alpha[t - 1][j] - global.tr.im - 0.25_f64.ln();
                     if temp_alpha < alpha[t][i] {
                         alpha[t][i] = temp_alpha;
                         path[t][i] = j;
@@ -202,15 +202,15 @@ pub fn viterbi(
         // I state
         for i in hmm::I1_STATE..=hmm::I6_STATE {
             // from I state
-            alpha[t][i] = alpha[t - 1][i] - global.tr[hmm::TR_II] - global.tr_ii[from][to];
+            alpha[t][i] = alpha[t - 1][i] - global.tr.ii - global.tr_ii[from][to];
             path[t][i] = i;
 
             // from M state
             let temp_alpha = alpha[t - 1][i - hmm::I1_STATE + hmm::M1_STATE]
-                - global.tr[hmm::TR_MI]
+                - global.tr.mi
                 - global.tr_mi[from][to]
                 - if i == hmm::I6_STATE {
-                    global.tr[hmm::TR_GG]
+                    global.tr.gg
                 } else {
                     0.0
                 };
@@ -238,8 +238,8 @@ pub fn viterbi(
                 if i == hmm::M1_STATE_1 {
                     // from M state
                     alpha[t][i] = alpha[t - 1][hmm::M6_STATE_1]
-                        - global.tr[hmm::TR_GG]
-                        - global.tr[hmm::TR_MM]
+                        - global.tr.gg
+                        - global.tr.mm
                         - local.e_m1[0][from2][to];
                     path[t][i] = hmm::M6_STATE_1;
 
@@ -254,11 +254,11 @@ pub fn viterbi(
                                 -10
                             };
                             if num_d > 0 {
-                                let temp_alpha = alpha[t - 1][j] - global.tr[hmm::TR_MD]
+                                let temp_alpha = alpha[t - 1][j] - global.tr.md
                                                - local.e_m1[0][from2][to] // TODO different from forward but merge?
                                                - 0.25_f64.ln() * (num_d - 1) as f64
-                                               - global.tr[hmm::TR_DD] * (num_d - 2) as f64
-                                               - global.tr[hmm::TR_DM];
+                                               - global.tr.dd * (num_d - 2) as f64
+                                               - global.tr.dm;
                                 if temp_alpha < alpha[t][i] {
                                     alpha[t][i] = temp_alpha;
                                     path[t][i] = j;
@@ -269,7 +269,7 @@ pub fn viterbi(
                 } else {
                     // from M state
                     alpha[t][i] = alpha[t - 1][i - 1]
-                        - global.tr[hmm::TR_MM]
+                        - global.tr.mm
                         - local.e_m1[i - hmm::M1_STATE_1][from2][to];
                     path[t][i] = i - 1;
 
@@ -285,11 +285,11 @@ pub fn viterbi(
                             };
                             if num_d > 0 {
                                 let temp_alpha = alpha[t - 1][j]
-                                    - global.tr[hmm::TR_MD]
+                                    - global.tr.md
                                     - local.e_m1[i - hmm::M1_STATE_1][from2][to]
                                     - 0.25_f64.ln() * (num_d - 1) as f64
-                                    - global.tr[hmm::TR_DD] * (num_d - 2) as f64
-                                    - global.tr[hmm::TR_DM];
+                                    - global.tr.dd * (num_d - 2) as f64
+                                    - global.tr.dm;
                                 if temp_alpha < alpha[t][i] {
                                     alpha[t][i] = temp_alpha;
                                     path[t][i] = j;
@@ -326,7 +326,7 @@ pub fn viterbi(
                             && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == b'T'))
                 {
                 } else {
-                    let temp_alpha = alpha[t - 1][j] - global.tr[hmm::TR_IM] - 0.25_f64.ln();
+                    let temp_alpha = alpha[t - 1][j] - global.tr.im - 0.25_f64.ln();
                     if temp_alpha < alpha[t][i] {
                         alpha[t][i] = temp_alpha;
                         path[t][i] = j;
@@ -338,7 +338,7 @@ pub fn viterbi(
         // I' state
         for i in hmm::I1_STATE_1..=hmm::I6_STATE_1 {
             // from I state
-            alpha[t][i] = alpha[t - 1][i] - global.tr[hmm::TR_II] - global.tr_ii[from][to];
+            alpha[t][i] = alpha[t - 1][i] - global.tr.ii - global.tr_ii[from][to];
             path[t][i] = i;
 
             // from M state
@@ -347,10 +347,10 @@ pub fn viterbi(
                 && (t >= 5 && path[t - 5][hmm::S_STATE_1] != hmm::R_STATE)
             {
                 let temp_alpha = alpha[t - 1][i - hmm::I1_STATE_1 + hmm::M1_STATE_1]
-                    - global.tr[hmm::TR_MI]
+                    - global.tr.mi
                     - global.tr_mi[from][to]
                     - if i == hmm::I6_STATE_1 {
-                        global.tr[hmm::TR_GG]
+                        global.tr.gg
                     } else {
                         0.0
                     };
@@ -364,17 +364,16 @@ pub fn viterbi(
 
         // non_coding state
         // TODO just a minimum of three
-        alpha[t][hmm::R_STATE] =
-            alpha[t - 1][hmm::R_STATE] - local.tr_rr[from][to] - global.tr[hmm::TR_RR];
+        alpha[t][hmm::R_STATE] = alpha[t - 1][hmm::R_STATE] - local.tr_rr[from][to] - global.tr.rr;
         path[t][hmm::R_STATE] = hmm::R_STATE;
 
-        let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr[hmm::TR_ER];
+        let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr.er;
         if temp_alpha < alpha[t][hmm::R_STATE] {
             alpha[t][hmm::R_STATE] = temp_alpha;
             path[t][hmm::R_STATE] = hmm::E_STATE;
         }
 
-        let temp_alpha = alpha[t - 1][hmm::E_STATE_1] - global.tr[hmm::TR_ER];
+        let temp_alpha = alpha[t - 1][hmm::E_STATE_1] - global.tr.er;
         if temp_alpha < alpha[t][hmm::R_STATE] {
             alpha[t][hmm::R_STATE] = temp_alpha;
             path[t][hmm::R_STATE] = hmm::E_STATE_1;
@@ -396,14 +395,14 @@ pub fn viterbi(
                 alpha[t + 2][hmm::E_STATE] = f64::INFINITY;
 
                 // transition from frame4, frame5 and frame6
-                let temp_alpha = alpha[t - 1][hmm::M6_STATE] - global.tr[hmm::TR_GE];
+                let temp_alpha = alpha[t - 1][hmm::M6_STATE] - global.tr.ge;
                 if temp_alpha < alpha[t + 2][hmm::E_STATE] {
                     alpha[t + 2][hmm::E_STATE] = temp_alpha;
                     path[t][hmm::E_STATE] = hmm::M6_STATE;
                 }
 
                 // transition from frame1, frame2 and frame3
-                let temp_alpha = alpha[t - 1][hmm::M3_STATE] - global.tr[hmm::TR_GE];
+                let temp_alpha = alpha[t - 1][hmm::M3_STATE] - global.tr.ge;
                 if temp_alpha < alpha[t + 2][hmm::E_STATE] {
                     alpha[t + 2][hmm::E_STATE] = temp_alpha;
                     path[t][hmm::E_STATE] = hmm::M3_STATE;
@@ -480,18 +479,18 @@ pub fn viterbi(
             {
                 alpha[t][hmm::S_STATE_1] = f64::INFINITY;
                 alpha[t + 1][hmm::S_STATE_1] = f64::INFINITY;
-                alpha[t + 2][hmm::S_STATE_1] = alpha[t - 1][hmm::R_STATE] - global.tr[hmm::TR_RS];
+                alpha[t + 2][hmm::S_STATE_1] = alpha[t - 1][hmm::R_STATE] - global.tr.rs;
                 path[t][hmm::S_STATE_1] = hmm::R_STATE;
                 path[t + 1][hmm::S_STATE_1] = hmm::S_STATE_1;
                 path[t + 2][hmm::S_STATE_1] = hmm::S_STATE_1;
 
-                let temp_alpha = alpha[t - 1][hmm::E_STATE_1] - global.tr[hmm::TR_ES];
+                let temp_alpha = alpha[t - 1][hmm::E_STATE_1] - global.tr.es;
                 if temp_alpha < alpha[t + 2][hmm::S_STATE_1] {
                     alpha[t + 2][hmm::S_STATE_1] = temp_alpha;
                     path[t][hmm::S_STATE_1] = hmm::E_STATE_1;
                 }
 
-                let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr[hmm::TR_ES1];
+                let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr.es1;
                 if temp_alpha < alpha[t + 2][hmm::S_STATE_1] {
                     alpha[t + 2][hmm::S_STATE_1] = temp_alpha;
                     path[t][hmm::S_STATE_1] = hmm::E_STATE;
@@ -549,18 +548,18 @@ pub fn viterbi(
             {
                 alpha[t][hmm::S_STATE] = f64::INFINITY;
                 alpha[t + 1][hmm::S_STATE] = f64::INFINITY;
-                alpha[t + 2][hmm::S_STATE] = alpha[t - 1][hmm::R_STATE] - global.tr[hmm::TR_RS];
+                alpha[t + 2][hmm::S_STATE] = alpha[t - 1][hmm::R_STATE] - global.tr.rs;
                 path[t][hmm::S_STATE] = hmm::R_STATE;
                 path[t + 1][hmm::S_STATE] = hmm::S_STATE;
                 path[t + 2][hmm::S_STATE] = hmm::S_STATE;
 
-                let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr[hmm::TR_ES];
+                let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr.es;
                 if temp_alpha < alpha[t + 2][hmm::S_STATE] {
                     alpha[t + 2][hmm::S_STATE] = temp_alpha;
                     path[t][hmm::S_STATE] = hmm::E_STATE;
                 }
 
-                let temp_alpha = alpha[t - 1][hmm::E_STATE_1] - global.tr[hmm::TR_ES1];
+                let temp_alpha = alpha[t - 1][hmm::E_STATE_1] - global.tr.es1;
                 if temp_alpha < alpha[t + 2][hmm::S_STATE] {
                     alpha[t + 2][hmm::S_STATE] = temp_alpha;
                     path[t][hmm::S_STATE] = hmm::E_STATE_1;
@@ -625,8 +624,7 @@ pub fn viterbi(
                 // transition from frame6
                 alpha[t][hmm::E_STATE_1] = f64::INFINITY;
                 alpha[t + 1][hmm::E_STATE_1] = f64::INFINITY;
-                alpha[t + 2][hmm::E_STATE_1] =
-                    alpha[t - 1][hmm::M6_STATE_1] - global.tr[hmm::TR_GE];
+                alpha[t + 2][hmm::E_STATE_1] = alpha[t - 1][hmm::M6_STATE_1] - global.tr.ge;
                 path[t][hmm::E_STATE_1] = hmm::M6_STATE_1;
                 path[t + 1][hmm::E_STATE_1] = hmm::E_STATE_1;
                 path[t + 2][hmm::E_STATE_1] = hmm::E_STATE_1;
