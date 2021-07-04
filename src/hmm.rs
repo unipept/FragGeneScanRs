@@ -17,38 +17,167 @@ pub const NUM_STATE: usize = 29;
 // 23     E = 1,
 // 24     R = 2,
 
-pub const S_STATE: usize = 0;
-pub const E_STATE: usize = 1;
-pub const R_STATE: usize = 2;
-pub const S_STATE_1: usize = 3;
-pub const E_STATE_1: usize = 4;
-pub const M1_STATE: usize = 5;
-pub const M2_STATE: usize = 6;
-pub const M3_STATE: usize = 7;
-pub const M4_STATE: usize = 8;
-pub const M5_STATE: usize = 9;
-pub const M6_STATE: usize = 10;
-pub const M1_STATE_1: usize = 11;
-pub const M2_STATE_1: usize = 12;
-pub const M3_STATE_1: usize = 13;
-pub const M4_STATE_1: usize = 14;
-pub const M5_STATE_1: usize = 15;
-pub const M6_STATE_1: usize = 16;
-pub const I1_STATE: usize = 17;
-pub const I2_STATE: usize = 18;
-pub const I3_STATE: usize = 19;
-pub const I4_STATE: usize = 20;
-pub const I5_STATE: usize = 21;
-pub const I6_STATE: usize = 22;
-pub const I1_STATE_1: usize = 23;
-pub const I2_STATE_1: usize = 24;
-pub const I3_STATE_1: usize = 25;
-pub const I4_STATE_1: usize = 26;
-pub const I5_STATE_1: usize = 27;
-pub const I6_STATE_1: usize = 28;
-pub const NOSTATE: usize = 30;
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub enum State {
+    S = 0,
+    E = 1,
+    R = 2,
+    Sr = 3,
+    Er = 4,
+    M1 = 5,
+    M2 = 6,
+    M3 = 7,
+    M4 = 8,
+    M5 = 9,
+    M6 = 10,
+    M1r = 11,
+    M2r = 12,
+    M3r = 13,
+    M4r = 14,
+    M5r = 15,
+    M6r = 16,
+    I1 = 17,
+    I2 = 18,
+    I3 = 19,
+    I4 = 20,
+    I5 = 21,
+    I6 = 22,
+    I1r = 23,
+    I2r = 24,
+    I3r = 25,
+    I4r = 26,
+    I5r = 27,
+    I6r = 28,
+    N = 30,
+}
 
 const NUM_TRANSITIONS: usize = 14;
+
+impl State {
+    pub fn next(self) -> Self {
+        match self {
+            State::S => State::E,
+            State::E => State::R,
+            State::R => State::Sr,
+            State::Sr => State::Er,
+            State::Er => State::M1,
+            State::M1 => State::M2,
+            State::M2 => State::M3,
+            State::M3 => State::M4,
+            State::M4 => State::M5,
+            State::M5 => State::M6,
+            State::M6 => State::M1r,
+            State::M1r => State::M2r,
+            State::M2r => State::M3r,
+            State::M3r => State::M4r,
+            State::M4r => State::M5r,
+            State::M5r => State::M6r,
+            State::M6r => State::I1,
+            State::I1 => State::I2,
+            State::I2 => State::I3,
+            State::I3 => State::I4,
+            State::I4 => State::I5,
+            State::I5 => State::I6,
+            State::I6 => State::I1r,
+            State::I1r => State::I2r,
+            State::I2r => State::I3r,
+            State::I3r => State::I4r,
+            State::I4r => State::I5r,
+            State::I5r => State::I6r,
+            State::I6r => State::N,
+            State::N => State::S,
+        }
+    }
+
+    pub fn previous(self) -> Self {
+        match self {
+            State::S => State::N,
+            State::E => State::S,
+            State::R => State::E,
+            State::Sr => State::R,
+            State::Er => State::Sr,
+            State::M1 => State::Er,
+            State::M2 => State::M1,
+            State::M3 => State::M2,
+            State::M4 => State::M3,
+            State::M5 => State::M4,
+            State::M6 => State::M5,
+            State::M1r => State::M6,
+            State::M2r => State::M1r,
+            State::M3r => State::M2r,
+            State::M4r => State::M3r,
+            State::M5r => State::M4r,
+            State::M6r => State::M5r,
+            State::I1 => State::M6r,
+            State::I2 => State::I1,
+            State::I3 => State::I2,
+            State::I4 => State::I3,
+            State::I5 => State::I4,
+            State::I6 => State::I5,
+            State::I1r => State::I6,
+            State::I2r => State::I1r,
+            State::I3r => State::I2r,
+            State::I4r => State::I3r,
+            State::I5r => State::I4r,
+            State::I6r => State::I5r,
+            State::N => State::I6r,
+        }
+    }
+
+    pub fn up_through(self, other: State) -> StateIterator {
+        StateIterator {
+            start: self,
+            finish: other.next(),
+        }
+    }
+}
+
+pub struct StateIterator {
+    start: State,
+    finish: State,
+}
+
+impl Iterator for StateIterator {
+    type Item = State;
+
+    fn next(&mut self) -> Option<State> {
+        if self.start == self.finish {
+            None
+        } else {
+            self.start = self.start.next();
+            Some(self.start.previous())
+        }
+    }
+}
+
+impl DoubleEndedIterator for StateIterator {
+    fn next_back(&mut self) -> Option<State> {
+        if self.start == self.finish {
+            None
+        } else {
+            self.finish = self.finish.previous();
+            Some(self.finish)
+        }
+    }
+}
+
+pub fn states() -> StateIterator {
+    State::S.up_through(State::I6r)
+}
+
+impl<T> std::ops::Index<State> for [T] {
+    type Output = T;
+
+    fn index(&self, idx: State) -> &T {
+        &self[idx as usize]
+    }
+}
+
+impl<T> std::ops::IndexMut<State> for [T] {
+    fn index_mut(&mut self, idx: State) -> &mut T {
+        &mut self[idx as usize]
+    }
+}
 
 #[derive(Default)]
 pub struct Transition {
