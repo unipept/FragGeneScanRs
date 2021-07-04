@@ -12,13 +12,13 @@ pub fn viterbi(
     let gene_len = if whole_genome { 120 } else { 60 }; // minimum length to be output
 
     let mut alpha: Vec<[f64; hmm::NUM_STATE]> = vec![];
-    let mut path: Vec<[hmm::State; hmm::NUM_STATE]> = vec![];
+    let mut path: Vec<[usize; hmm::NUM_STATE]> = vec![];
     let mut temp_i: [usize; 6] = [0; 6];
     let mut temp_i_1: [usize; 6] = [0; 6];
 
     for _ in 0..seq.len() {
         alpha.push([0.0; hmm::NUM_STATE]);
-        path.push([hmm::State::N; hmm::NUM_STATE]);
+        path.push([hmm::NOSTATE; hmm::NUM_STATE]);
     }
     alpha[0].copy_from_slice(&global.pi);
     for i in &mut alpha[0] {
@@ -31,19 +31,19 @@ pub fn viterbi(
             || (seq[1] == b'A' && seq[2] == b'G')
             || (seq[1] == b'G' && seq[2] == b'A'))
     {
-        alpha[0][hmm::State::E] = f64::INFINITY;
-        alpha[1][hmm::State::E] = f64::INFINITY;
-        path[1][hmm::State::E] = hmm::State::E;
-        path[2][hmm::State::E] = hmm::State::E;
+        alpha[0][hmm::E_STATE] = f64::INFINITY;
+        alpha[1][hmm::E_STATE] = f64::INFINITY;
+        path[1][hmm::E_STATE] = hmm::E_STATE;
+        path[2][hmm::E_STATE] = hmm::E_STATE;
 
-        alpha[2][hmm::State::M6] = f64::INFINITY;
-        alpha[1][hmm::State::M5] = f64::INFINITY;
-        alpha[0][hmm::State::M4] = f64::INFINITY;
-        alpha[2][hmm::State::M3] = f64::INFINITY;
-        alpha[1][hmm::State::M2] = f64::INFINITY;
-        alpha[0][hmm::State::M1] = f64::INFINITY;
+        alpha[2][hmm::M6_STATE] = f64::INFINITY;
+        alpha[1][hmm::M5_STATE] = f64::INFINITY;
+        alpha[0][hmm::M4_STATE] = f64::INFINITY;
+        alpha[2][hmm::M3_STATE] = f64::INFINITY;
+        alpha[1][hmm::M2_STATE] = f64::INFINITY;
+        alpha[0][hmm::M1_STATE] = f64::INFINITY;
 
-        alpha[2][hmm::State::E] -= if seq[1] == b'A' && seq[2] == b'A' {
+        alpha[2][hmm::E_STATE] -= if seq[1] == b'A' && seq[2] == b'A' {
             0.53_f64.ln()
         } else if seq[1] == b'A' && seq[2] == b'G' {
             0.16_f64.ln()
@@ -58,16 +58,16 @@ pub fn viterbi(
             || (seq[1] == b'T' && seq[0] == b'C')
             || (seq[1] == b'C' && seq[0] == b'T'))
     {
-        alpha[0][hmm::State::Sr] = f64::INFINITY;
-        alpha[1][hmm::State::Sr] = f64::INFINITY;
-        alpha[2][hmm::State::Sr] = alpha[0][hmm::State::S];
-        path[1][hmm::State::Sr] = hmm::State::Sr;
-        path[2][hmm::State::Sr] = hmm::State::Sr;
+        alpha[0][hmm::S_STATE_1] = f64::INFINITY;
+        alpha[1][hmm::S_STATE_1] = f64::INFINITY;
+        alpha[2][hmm::S_STATE_1] = alpha[0][hmm::S_STATE];
+        path[1][hmm::S_STATE_1] = hmm::S_STATE_1;
+        path[2][hmm::S_STATE_1] = hmm::S_STATE_1;
 
-        alpha[2][hmm::State::M3r] = f64::INFINITY;
-        alpha[2][hmm::State::M6r] = f64::INFINITY;
+        alpha[2][hmm::M3_STATE_1] = f64::INFINITY;
+        alpha[2][hmm::M6_STATE_1] = f64::INFINITY;
 
-        alpha[2][hmm::State::Sr] = if seq[1] == b'T' && seq[0] == b'T' {
+        alpha[2][hmm::S_STATE_1] = if seq[1] == b'T' && seq[0] == b'T' {
             0.53_f64.ln()
         } else if seq[1] == b'T' && seq[0] == b'C' {
             0.16_f64.ln()
@@ -92,23 +92,23 @@ pub fn viterbi(
 
         // M state
 
-        for (k, i) in hmm::State::M1.up_through(hmm::State::M6).enumerate() {
+        for i in hmm::M1_STATE..=hmm::M6_STATE {
             if alpha[t][i].is_finite() {
-                if i == hmm::State::M1 {
+                if i == hmm::M1_STATE {
                     // from M state
-                    alpha[t][i] = alpha[t - 1][hmm::State::M6]
+                    alpha[t][i] = alpha[t - 1][hmm::M6_STATE]
                         - global.tr.gg
                         - global.tr.mm
                         - local.e_m[0][from2][to];
-                    path[t][i] = hmm::State::M6;
+                    path[t][i] = hmm::M6_STATE;
 
                     // from D state
                     if !whole_genome {
-                        for j in hmm::State::M1.up_through(hmm::State::M5).rev() {
+                        for j in (hmm::M1_STATE..=hmm::M5_STATE).rev() {
                             let num_d = if j >= i {
-                                i as i32 + 6 - j as i32
-                            } else if j.next() < i {
-                                i as i32 - j as i32
+                                (i + 6 - j) as i32
+                            } else if j + 1 < i {
+                                (i - j) as i32
                             } else {
                                 -10
                             };
@@ -128,31 +128,32 @@ pub fn viterbi(
                     }
 
                     // from Start state
-                    let temp_alpha = alpha[t - 1][hmm::State::S] - local.e_m[0][from2][to];
+                    let temp_alpha = alpha[t - 1][hmm::S_STATE] - local.e_m[0][from2][to];
                     if temp_alpha < alpha[t][i] {
                         alpha[t][i] = temp_alpha;
-                        path[t][i] = hmm::State::S;
+                        path[t][i] = hmm::S_STATE;
                     }
                 } else {
                     // from M state
-                    alpha[t][i] =
-                        alpha[t - 1][i.previous()] - global.tr.mm - local.e_m[k][from2][to];
-                    path[t][i] = i.previous();
+                    alpha[t][i] = alpha[t - 1][i - 1]
+                        - global.tr.mm
+                        - local.e_m[i - hmm::M1_STATE][from2][to];
+                    path[t][i] = i - 1;
 
                     // from D state
                     if !whole_genome {
-                        for j in hmm::State::M1.up_through(hmm::State::M6).rev() {
+                        for j in (hmm::M1_STATE..=hmm::M6_STATE).rev() {
                             let num_d = if j >= i {
-                                i as i32 + 6 - j as i32
-                            } else if j.next() < i {
-                                i as i32 - j as i32
+                                (i + 6 - j) as i32
+                            } else if j + 1 < i {
+                                (i - j) as i32
                             } else {
                                 -10
                             };
                             if num_d > 0 {
                                 let temp_alpha = alpha[t - 1][j]
                                     - global.tr.md
-                                    - local.e_m[k][from2][to]
+                                    - local.e_m[i - hmm::M1_STATE][from2][to]
                                     - 0.25_f64.ln() * (num_d - 1) as f64
                                     - global.tr.dd * (num_d - 2) as f64
                                     - global.tr.dm;
@@ -166,31 +167,27 @@ pub fn viterbi(
                 }
 
                 // from I state (l251)
-                let j = if i == hmm::State::M1 {
-                    hmm::State::I6
+                let j = if i == hmm::M1_STATE {
+                    hmm::I6_STATE
                 } else {
-                    hmm::State::I1.up_through(hmm::State::N).nth(k - 1).unwrap()
-                    // TODO
+                    hmm::I1_STATE + (i - hmm::M1_STATE - 1)
                 };
 
                 // to avoid stop codon
                 if t < 2 {
-                } else if (i == hmm::State::M2 || i == hmm::State::M5)
+                } else if (i == hmm::M2_STATE || i == hmm::M5_STATE)
                     && t + 1 < seq.len()
-                    && seq[temp_i[j as usize - hmm::State::I1 as usize]] == b'T'
+                    && seq[temp_i[j - hmm::I1_STATE]] == b'T'
                     && ((seq[t] == b'A' && seq[t + 1] == b'A')
                         || (seq[t] == b'A' && seq[t + 1] == b'G')
                         || (seq[t] == b'G' && seq[t + 1] == b'A'))
                 {
-                } else if (i == hmm::State::M3 || i == hmm::State::M6)
-                    && temp_i[j as usize - hmm::State::I1 as usize] > 0
-                    && (seq[temp_i[j as usize - hmm::State::I1 as usize] - 1] == b'T')
-                    && ((seq[temp_i[j as usize - hmm::State::I1 as usize]] == b'A'
-                        && seq[t] == b'A')
-                        || (seq[temp_i[j as usize - hmm::State::I1 as usize]] == b'A'
-                            && seq[t] == b'G')
-                        || (seq[temp_i[j as usize - hmm::State::I1 as usize]] == b'G'
-                            && seq[t] == b'A'))
+                } else if (i == hmm::M3_STATE || i == hmm::M6_STATE)
+                    && temp_i[j - hmm::I1_STATE] > 0
+                    && (seq[temp_i[j - hmm::I1_STATE] - 1] == b'T')
+                    && ((seq[temp_i[j - hmm::I1_STATE]] == b'A' && seq[t] == b'A')
+                        || (seq[temp_i[j - hmm::I1_STATE]] == b'A' && seq[t] == b'G')
+                        || (seq[temp_i[j - hmm::I1_STATE]] == b'G' && seq[t] == b'A'))
                 {
                 } else {
                     let temp_alpha = alpha[t - 1][j] - global.tr.im - 0.25_f64.ln();
@@ -203,33 +200,30 @@ pub fn viterbi(
         }
 
         // I state
-        for (i, m) in hmm::State::I1
-            .up_through(hmm::State::I6)
-            .zip(hmm::State::M1.up_through(hmm::State::M6))
-        {
+        for i in hmm::I1_STATE..=hmm::I6_STATE {
             // from I state
             alpha[t][i] = alpha[t - 1][i] - global.tr.ii - global.tr_ii[from][to];
             path[t][i] = i;
 
             // from M state
-            let temp_alpha = alpha[t - 1][m]
+            let temp_alpha = alpha[t - 1][i - hmm::I1_STATE + hmm::M1_STATE]
                 - global.tr.mi
                 - global.tr_mi[from][to]
-                - if i == hmm::State::I6 {
+                - if i == hmm::I6_STATE {
                     global.tr.gg
                 } else {
                     0.0
                 };
             if temp_alpha < alpha[t][i] {
                 alpha[t][i] = temp_alpha;
-                path[t][i] = m;
-                temp_i[i as usize - hmm::State::I1 as usize] = t - 1;
+                path[t][i] = i - hmm::I1_STATE + hmm::M1_STATE;
+                temp_i[i - hmm::I1_STATE] = t - 1;
             }
         }
 
         // M' state
-        for (k, i) in hmm::State::M1r.up_through(hmm::State::M6r).enumerate() {
-            if (i == hmm::State::M1r || i == hmm::State::M4r)
+        for i in hmm::M1_STATE_1..=hmm::M6_STATE_1 {
+            if (i == hmm::M1_STATE_1 || i == hmm::M4_STATE_1)
                 && t >= 3
                 && seq[t - 1] == b'A'
                 && ((seq[t - 2] == b'T' && seq[t - 3] == b'T')
@@ -237,24 +231,25 @@ pub fn viterbi(
                     || (seq[t - 2] == b'C' && seq[t - 3] == b'T'))
             {
                 // from Start state since this is actually a stop codon in minus strand
-                alpha[t][i] = alpha[t - 1][hmm::State::Sr] - local.e_m1[k][from2][to];
-                path[t][i] = hmm::State::Sr;
+                alpha[t][i] =
+                    alpha[t - 1][hmm::S_STATE_1] - local.e_m1[i - hmm::M1_STATE_1][from2][to];
+                path[t][i] = hmm::S_STATE_1;
             } else {
-                if i == hmm::State::M1r {
+                if i == hmm::M1_STATE_1 {
                     // from M state
-                    alpha[t][i] = alpha[t - 1][hmm::State::M6r]
+                    alpha[t][i] = alpha[t - 1][hmm::M6_STATE_1]
                         - global.tr.gg
                         - global.tr.mm
                         - local.e_m1[0][from2][to];
-                    path[t][i] = hmm::State::M6r;
+                    path[t][i] = hmm::M6_STATE_1;
 
                     // from D state
                     if !whole_genome {
-                        for j in hmm::State::M1r.up_through(hmm::State::M5r).rev() {
+                        for j in (hmm::M1_STATE_1..=hmm::M5_STATE_1).rev() {
                             let num_d = if j >= i {
-                                i as i32 + 6 - j as i32
-                            } else if j.next() < i {
-                                i as i32 - j as i32
+                                (i + 6 - j) as i32
+                            } else if j + 1 < i {
+                                (i - j) as i32
                             } else {
                                 -10
                             };
@@ -273,24 +268,25 @@ pub fn viterbi(
                     }
                 } else {
                     // from M state
-                    alpha[t][i] =
-                        alpha[t - 1][i.previous()] - global.tr.mm - local.e_m1[k][from2][to];
-                    path[t][i] = i.previous();
+                    alpha[t][i] = alpha[t - 1][i - 1]
+                        - global.tr.mm
+                        - local.e_m1[i - hmm::M1_STATE_1][from2][to];
+                    path[t][i] = i - 1;
 
                     // from D state
                     if !whole_genome {
-                        for j in hmm::State::M1r.up_through(hmm::State::M6r).rev() {
+                        for j in (hmm::M1_STATE_1..=hmm::M6_STATE_1).rev() {
                             let num_d = if j >= i {
-                                i as i32 + 6 - j as i32
-                            } else if j.next() < i {
-                                i as i32 - j as i32
+                                (i + 6 - j) as i32
+                            } else if j + 1 < i {
+                                (i - j) as i32
                             } else {
                                 -10
                             };
                             if num_d > 0 {
                                 let temp_alpha = alpha[t - 1][j]
                                     - global.tr.md
-                                    - local.e_m1[k][from2][to]
+                                    - local.e_m1[i - hmm::M1_STATE_1][from2][to]
                                     - 0.25_f64.ln() * (num_d - 1) as f64
                                     - global.tr.dd * (num_d - 2) as f64
                                     - global.tr.dm;
@@ -304,36 +300,30 @@ pub fn viterbi(
                 }
 
                 // from I state
-                let j = if i == hmm::State::M1r {
-                    hmm::State::I6r
+                let j = if i == hmm::M1_STATE_1 {
+                    hmm::I6_STATE_1
                 } else {
-                    hmm::State::I1r
-                        .up_through(hmm::State::N)
-                        .nth(k - 1)
-                        .unwrap() // TODO
+                    hmm::I1_STATE_1 + i - hmm::M1_STATE_1 - 1
                 };
 
                 // to avoid stop codon
                 if t < 2 {
-                } else if (i == hmm::State::M2r || i == hmm::State::M5r)
+                } else if (i == hmm::M2_STATE_1 || i == hmm::M5_STATE_1)
                     && t + 1 < seq.len()
                     && seq[t + 1] == b'A'
-                    && ((seq[t] == b'T'
-                        && seq[temp_i_1[j as usize - hmm::State::I1r as usize]] == b'T')
-                        || (seq[t] == b'T'
-                            && seq[temp_i_1[j as usize - hmm::State::I1r as usize]] == b'C')
-                        || (seq[t] == b'A'
-                            && seq[temp_i_1[j as usize - hmm::State::I1r as usize]] == b'T'))
+                    && ((seq[t] == b'T' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T')
+                        || (seq[t] == b'T' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'C')
+                        || (seq[t] == b'A' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T'))
                 {
-                } else if (i == hmm::State::M3r || i == hmm::State::M6r)
+                } else if (i == hmm::M3_STATE_1 || i == hmm::M6_STATE_1)
                     && seq[t] == b'A'
-                    && temp_i_1[j as usize - hmm::State::I1r as usize] > 1
-                    && ((seq[temp_i_1[j as usize - hmm::State::I1r as usize]] == b'T'
-                        && seq[temp_i_1[j as usize - hmm::State::I1r as usize] - 1] == b'T')
-                        || (seq[temp_i_1[j as usize - hmm::State::I1r as usize]] == b'T'
-                            && seq[temp_i_1[j as usize - hmm::State::I1r as usize] - 1] == b'C')
-                        || (seq[temp_i_1[j as usize - hmm::State::I1r as usize]] == b'C'
-                            && seq[temp_i_1[j as usize - hmm::State::I1r as usize] - 1] == b'T'))
+                    && temp_i_1[j - hmm::I1_STATE_1] > 1
+                    && ((seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T'
+                        && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == b'T')
+                        || (seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T'
+                            && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == b'C')
+                        || (seq[temp_i_1[j - hmm::I1_STATE_1]] == b'C'
+                            && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == b'T'))
                 {
                 } else {
                     let temp_alpha = alpha[t - 1][j] - global.tr.im - 0.25_f64.ln();
@@ -346,59 +336,55 @@ pub fn viterbi(
         }
 
         // I' state
-        for (i, m) in hmm::State::I1r
-            .up_through(hmm::State::I6r)
-            .zip(hmm::State::M1r.up_through(hmm::State::M6r))
-        {
+        for i in hmm::I1_STATE_1..=hmm::I6_STATE_1 {
             // from I state
             alpha[t][i] = alpha[t - 1][i] - global.tr.ii - global.tr_ii[from][to];
             path[t][i] = i;
 
             // from M state
-            if (t >= 3 && path[t - 3][hmm::State::Sr] != hmm::State::R)
-                && (t >= 4 && path[t - 4][hmm::State::Sr] != hmm::State::R)
-                && (t >= 5 && path[t - 5][hmm::State::Sr] != hmm::State::R)
+            if (t >= 3 && path[t - 3][hmm::S_STATE_1] != hmm::R_STATE)
+                && (t >= 4 && path[t - 4][hmm::S_STATE_1] != hmm::R_STATE)
+                && (t >= 5 && path[t - 5][hmm::S_STATE_1] != hmm::R_STATE)
             {
-                let temp_alpha = alpha[t - 1][m]
+                let temp_alpha = alpha[t - 1][i - hmm::I1_STATE_1 + hmm::M1_STATE_1]
                     - global.tr.mi
                     - global.tr_mi[from][to]
-                    - if i == hmm::State::I6r {
+                    - if i == hmm::I6_STATE_1 {
                         global.tr.gg
                     } else {
                         0.0
                     };
                 if temp_alpha < alpha[t][i] {
                     alpha[t][i] = temp_alpha;
-                    path[t][i] = m;
-                    temp_i_1[i as usize - hmm::State::I1r as usize] = t - 1;
+                    path[t][i] = i - hmm::I1_STATE_1 + hmm::M1_STATE_1;
+                    temp_i_1[i - hmm::I1_STATE_1] = t - 1;
                 }
             }
         }
 
         // non_coding state
         // TODO just a minimum of three
-        alpha[t][hmm::State::R] =
-            alpha[t - 1][hmm::State::R] - local.tr_rr[from][to] - global.tr.rr;
-        path[t][hmm::State::R] = hmm::State::R;
+        alpha[t][hmm::R_STATE] = alpha[t - 1][hmm::R_STATE] - local.tr_rr[from][to] - global.tr.rr;
+        path[t][hmm::R_STATE] = hmm::R_STATE;
 
-        let temp_alpha = alpha[t - 1][hmm::State::E] - global.tr.er;
-        if temp_alpha < alpha[t][hmm::State::R] {
-            alpha[t][hmm::State::R] = temp_alpha;
-            path[t][hmm::State::R] = hmm::State::E;
+        let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr.er;
+        if temp_alpha < alpha[t][hmm::R_STATE] {
+            alpha[t][hmm::R_STATE] = temp_alpha;
+            path[t][hmm::R_STATE] = hmm::E_STATE;
         }
 
-        let temp_alpha = alpha[t - 1][hmm::State::Er] - global.tr.er;
-        if temp_alpha < alpha[t][hmm::State::R] {
-            alpha[t][hmm::State::R] = temp_alpha;
-            path[t][hmm::State::R] = hmm::State::Er;
+        let temp_alpha = alpha[t - 1][hmm::E_STATE_1] - global.tr.er;
+        if temp_alpha < alpha[t][hmm::R_STATE] {
+            alpha[t][hmm::R_STATE] = temp_alpha;
+            path[t][hmm::R_STATE] = hmm::E_STATE_1;
         }
 
-        alpha[t][hmm::State::R] -= 0.95_f64.ln();
+        alpha[t][hmm::R_STATE] -= 0.95_f64.ln();
 
         // end state
-        if alpha[t][hmm::State::E] == 0.0 {
-            alpha[t][hmm::State::E] = f64::INFINITY;
-            path[t][hmm::State::E] = hmm::State::N;
+        if alpha[t][hmm::E_STATE] == 0.0 {
+            alpha[t][hmm::E_STATE] = f64::INFINITY;
+            path[t][hmm::E_STATE] = hmm::NOSTATE;
 
             if t < seq.len() - 2
                 && seq[t] == b'T'
@@ -406,35 +392,35 @@ pub fn viterbi(
                     || (seq[t + 1] == b'A' && seq[t + 2] == b'G')
                     || (seq[t + 1] == b'G' && seq[t + 2] == b'A'))
             {
-                alpha[t + 2][hmm::State::E] = f64::INFINITY;
+                alpha[t + 2][hmm::E_STATE] = f64::INFINITY;
 
                 // transition from frame4, frame5 and frame6
-                let temp_alpha = alpha[t - 1][hmm::State::M6] - global.tr.ge;
-                if temp_alpha < alpha[t + 2][hmm::State::E] {
-                    alpha[t + 2][hmm::State::E] = temp_alpha;
-                    path[t][hmm::State::E] = hmm::State::M6;
+                let temp_alpha = alpha[t - 1][hmm::M6_STATE] - global.tr.ge;
+                if temp_alpha < alpha[t + 2][hmm::E_STATE] {
+                    alpha[t + 2][hmm::E_STATE] = temp_alpha;
+                    path[t][hmm::E_STATE] = hmm::M6_STATE;
                 }
 
                 // transition from frame1, frame2 and frame3
-                let temp_alpha = alpha[t - 1][hmm::State::M3] - global.tr.ge;
-                if temp_alpha < alpha[t + 2][hmm::State::E] {
-                    alpha[t + 2][hmm::State::E] = temp_alpha;
-                    path[t][hmm::State::E] = hmm::State::M3;
+                let temp_alpha = alpha[t - 1][hmm::M3_STATE] - global.tr.ge;
+                if temp_alpha < alpha[t + 2][hmm::E_STATE] {
+                    alpha[t + 2][hmm::E_STATE] = temp_alpha;
+                    path[t][hmm::E_STATE] = hmm::M3_STATE;
                 }
 
-                alpha[t][hmm::State::E] = f64::INFINITY;
-                alpha[t + 1][hmm::State::E] = f64::INFINITY;
-                path[t + 1][hmm::State::E] = hmm::State::E;
-                path[t + 2][hmm::State::E] = hmm::State::E;
+                alpha[t][hmm::E_STATE] = f64::INFINITY;
+                alpha[t + 1][hmm::E_STATE] = f64::INFINITY;
+                path[t + 1][hmm::E_STATE] = hmm::E_STATE;
+                path[t + 2][hmm::E_STATE] = hmm::E_STATE;
 
-                alpha[t + 2][hmm::State::M6] = f64::INFINITY;
-                alpha[t + 1][hmm::State::M5] = f64::INFINITY;
-                alpha[t][hmm::State::M4] = f64::INFINITY;
-                alpha[t + 2][hmm::State::M3] = f64::INFINITY;
-                alpha[t + 1][hmm::State::M2] = f64::INFINITY;
-                alpha[t][hmm::State::M1] = f64::INFINITY;
+                alpha[t + 2][hmm::M6_STATE] = f64::INFINITY;
+                alpha[t + 1][hmm::M5_STATE] = f64::INFINITY;
+                alpha[t][hmm::M4_STATE] = f64::INFINITY;
+                alpha[t + 2][hmm::M3_STATE] = f64::INFINITY;
+                alpha[t + 1][hmm::M2_STATE] = f64::INFINITY;
+                alpha[t][hmm::M1_STATE] = f64::INFINITY;
 
-                alpha[t + 2][hmm::State::E] -= if seq[t + 1] == b'A' && seq[t + 2] == b'A' {
+                alpha[t + 2][hmm::E_STATE] -= if seq[t + 1] == b'A' && seq[t + 2] == b'A' {
                     0.54_f64.ln()
                 } else if seq[t + 1] == b'A' && seq[t + 2] == b'G' {
                     0.16_f64.ln()
@@ -475,15 +461,15 @@ pub fn viterbi(
                         / (local.dist_e[3]).powi(2)
                         / 2.0)
                         .exp();
-                alpha[t + 2][hmm::State::E] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
+                alpha[t + 2][hmm::E_STATE] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
             }
         }
 
         // start' state
         // originally stop codon of genes in - strand
-        if alpha[t][hmm::State::Sr] == 0.0 {
-            alpha[t][hmm::State::Sr] = f64::INFINITY;
-            path[t][hmm::State::Sr] = hmm::State::N;
+        if alpha[t][hmm::S_STATE_1] == 0.0 {
+            alpha[t][hmm::S_STATE_1] = f64::INFINITY;
+            path[t][hmm::S_STATE_1] = hmm::NOSTATE;
 
             if t < seq.len() - 2
                 && seq[t + 2] == b'A'
@@ -491,29 +477,29 @@ pub fn viterbi(
                     || (seq[t + 1] == b'T' && seq[t] == b'C')
                     || (seq[t + 1] == b'C' && seq[t] == b'T'))
             {
-                alpha[t][hmm::State::Sr] = f64::INFINITY;
-                alpha[t + 1][hmm::State::Sr] = f64::INFINITY;
-                alpha[t + 2][hmm::State::Sr] = alpha[t - 1][hmm::State::R] - global.tr.rs;
-                path[t][hmm::State::Sr] = hmm::State::R;
-                path[t + 1][hmm::State::Sr] = hmm::State::Sr;
-                path[t + 2][hmm::State::Sr] = hmm::State::Sr;
+                alpha[t][hmm::S_STATE_1] = f64::INFINITY;
+                alpha[t + 1][hmm::S_STATE_1] = f64::INFINITY;
+                alpha[t + 2][hmm::S_STATE_1] = alpha[t - 1][hmm::R_STATE] - global.tr.rs;
+                path[t][hmm::S_STATE_1] = hmm::R_STATE;
+                path[t + 1][hmm::S_STATE_1] = hmm::S_STATE_1;
+                path[t + 2][hmm::S_STATE_1] = hmm::S_STATE_1;
 
-                let temp_alpha = alpha[t - 1][hmm::State::Er] - global.tr.es;
-                if temp_alpha < alpha[t + 2][hmm::State::Sr] {
-                    alpha[t + 2][hmm::State::Sr] = temp_alpha;
-                    path[t][hmm::State::Sr] = hmm::State::Er;
+                let temp_alpha = alpha[t - 1][hmm::E_STATE_1] - global.tr.es;
+                if temp_alpha < alpha[t + 2][hmm::S_STATE_1] {
+                    alpha[t + 2][hmm::S_STATE_1] = temp_alpha;
+                    path[t][hmm::S_STATE_1] = hmm::E_STATE_1;
                 }
 
-                let temp_alpha = alpha[t - 1][hmm::State::E] - global.tr.es1;
-                if temp_alpha < alpha[t + 2][hmm::State::Sr] {
-                    alpha[t + 2][hmm::State::Sr] = temp_alpha;
-                    path[t][hmm::State::Sr] = hmm::State::E;
+                let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr.es1;
+                if temp_alpha < alpha[t + 2][hmm::S_STATE_1] {
+                    alpha[t + 2][hmm::S_STATE_1] = temp_alpha;
+                    path[t][hmm::S_STATE_1] = hmm::E_STATE;
                 }
 
-                alpha[t + 2][hmm::State::M3r] = f64::INFINITY;
-                alpha[t + 2][hmm::State::M6r] = f64::INFINITY;
+                alpha[t + 2][hmm::M3_STATE_1] = f64::INFINITY;
+                alpha[t + 2][hmm::M6_STATE_1] = f64::INFINITY;
 
-                alpha[t + 2][hmm::State::Sr] -= if seq[t + 1] == b'T' && seq[t] == b'T' {
+                alpha[t + 2][hmm::S_STATE_1] -= if seq[t + 1] == b'T' && seq[t] == b'T' {
                     0.54_f64.ln()
                 } else if seq[t + 1] == b'T' && seq[t] == b'C' {
                     0.16_f64.ln()
@@ -546,40 +532,40 @@ pub fn viterbi(
                         / (local.dist_s1[3]).powi(2)
                         / 2.0)
                         .exp();
-                alpha[t + 2][hmm::State::Sr] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
+                alpha[t + 2][hmm::S_STATE_1] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
             }
         }
 
         // start state
-        if alpha[t][hmm::State::S] == 0.0 {
-            alpha[t][hmm::State::S] = f64::INFINITY;
-            path[t][hmm::State::S] = hmm::State::N;
+        if alpha[t][hmm::S_STATE] == 0.0 {
+            alpha[t][hmm::S_STATE] = f64::INFINITY;
+            path[t][hmm::S_STATE] = hmm::NOSTATE;
 
             if t < seq.len() - 2
                 && (seq[t] == b'A' || seq[t] == b'G' || seq[t] == b'T')
                 && seq[t + 1] == b'A'
                 && seq[t + 2] == b'G'
             {
-                alpha[t][hmm::State::S] = f64::INFINITY;
-                alpha[t + 1][hmm::State::S] = f64::INFINITY;
-                alpha[t + 2][hmm::State::S] = alpha[t - 1][hmm::State::R] - global.tr.rs;
-                path[t][hmm::State::S] = hmm::State::R;
-                path[t + 1][hmm::State::S] = hmm::State::S;
-                path[t + 2][hmm::State::S] = hmm::State::S;
+                alpha[t][hmm::S_STATE] = f64::INFINITY;
+                alpha[t + 1][hmm::S_STATE] = f64::INFINITY;
+                alpha[t + 2][hmm::S_STATE] = alpha[t - 1][hmm::R_STATE] - global.tr.rs;
+                path[t][hmm::S_STATE] = hmm::R_STATE;
+                path[t + 1][hmm::S_STATE] = hmm::S_STATE;
+                path[t + 2][hmm::S_STATE] = hmm::S_STATE;
 
-                let temp_alpha = alpha[t - 1][hmm::State::E] - global.tr.es;
-                if temp_alpha < alpha[t + 2][hmm::State::S] {
-                    alpha[t + 2][hmm::State::S] = temp_alpha;
-                    path[t][hmm::State::S] = hmm::State::E;
+                let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr.es;
+                if temp_alpha < alpha[t + 2][hmm::S_STATE] {
+                    alpha[t + 2][hmm::S_STATE] = temp_alpha;
+                    path[t][hmm::S_STATE] = hmm::E_STATE;
                 }
 
-                let temp_alpha = alpha[t - 1][hmm::State::Er] - global.tr.es1;
-                if temp_alpha < alpha[t + 2][hmm::State::S] {
-                    alpha[t + 2][hmm::State::S] = temp_alpha;
-                    path[t][hmm::State::S] = hmm::State::Er;
+                let temp_alpha = alpha[t - 1][hmm::E_STATE_1] - global.tr.es1;
+                if temp_alpha < alpha[t + 2][hmm::S_STATE] {
+                    alpha[t + 2][hmm::S_STATE] = temp_alpha;
+                    path[t][hmm::S_STATE] = hmm::E_STATE_1;
                 }
 
-                alpha[t + 2][hmm::State::S] -= if seq[t] == b'A' {
+                alpha[t + 2][hmm::S_STATE] -= if seq[t] == b'A' {
                     0.83_f64.ln()
                 } else if seq[t] == b'G' {
                     0.10_f64.ln()
@@ -620,15 +606,15 @@ pub fn viterbi(
                         / (local.dist_s[3]).powi(2)
                         / 2.0)
                         .exp();
-                alpha[t + 2][hmm::State::S] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
+                alpha[t + 2][hmm::S_STATE] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
             }
         }
 
         // end' state
         // originally start codon of genes in - strand
-        if alpha[t][hmm::State::Er] == 0.0 {
-            alpha[t][hmm::State::Er] = f64::INFINITY;
-            path[t][hmm::State::Er] = hmm::State::N;
+        if alpha[t][hmm::E_STATE_1] == 0.0 {
+            alpha[t][hmm::E_STATE_1] = f64::INFINITY;
+            path[t][hmm::E_STATE_1] = hmm::NOSTATE;
 
             if t < seq.len() - 2
                 && seq[t] == b'C'
@@ -636,14 +622,14 @@ pub fn viterbi(
                 && (seq[t + 2] == b'T' || seq[t + 2] == b'C' || seq[t + 2] == b'A')
             {
                 // transition from frame6
-                alpha[t][hmm::State::Er] = f64::INFINITY;
-                alpha[t + 1][hmm::State::Er] = f64::INFINITY;
-                alpha[t + 2][hmm::State::Er] = alpha[t - 1][hmm::State::M6r] - global.tr.ge;
-                path[t][hmm::State::Er] = hmm::State::M6r;
-                path[t + 1][hmm::State::Er] = hmm::State::Er;
-                path[t + 2][hmm::State::Er] = hmm::State::Er;
+                alpha[t][hmm::E_STATE_1] = f64::INFINITY;
+                alpha[t + 1][hmm::E_STATE_1] = f64::INFINITY;
+                alpha[t + 2][hmm::E_STATE_1] = alpha[t - 1][hmm::M6_STATE_1] - global.tr.ge;
+                path[t][hmm::E_STATE_1] = hmm::M6_STATE_1;
+                path[t + 1][hmm::E_STATE_1] = hmm::E_STATE_1;
+                path[t + 2][hmm::E_STATE_1] = hmm::E_STATE_1;
 
-                alpha[t + 2][hmm::State::Er] -= if seq[t + 2] == b'T' {
+                alpha[t + 2][hmm::E_STATE_1] -= if seq[t + 2] == b'T' {
                     0.83_f64.ln()
                 } else if seq[t + 2] == b'C' {
                     0.10_f64.ln()
@@ -683,15 +669,15 @@ pub fn viterbi(
                         / (local.dist_e1[3]).powi(2)
                         / 2.0)
                         .exp();
-                alpha[t + 2][hmm::State::Er] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
+                alpha[t + 2][hmm::E_STATE_1] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
             }
         }
 
         if num_noncoding > 9 {
-            for i in hmm::states() {
-                if i != hmm::State::R {
+            for i in 0..hmm::NUM_STATE {
+                if i != hmm::R_STATE {
                     alpha[t][i] = f64::INFINITY;
-                    path[t][i] = hmm::State::R;
+                    path[t][i] = hmm::R_STATE;
                 }
             }
         }
@@ -710,14 +696,11 @@ pub fn viterbi(
     )
 }
 
-fn backtrack(
-    alpha: &Vec<[f64; hmm::NUM_STATE]>,
-    path: Vec<[hmm::State; hmm::NUM_STATE]>,
-) -> Vec<hmm::State> {
+fn backtrack(alpha: &Vec<[f64; hmm::NUM_STATE]>, path: Vec<[usize; hmm::NUM_STATE]>) -> Vec<usize> {
     // backtrack array to find the optimal path
-    let mut vpath: Vec<hmm::State> = vec![hmm::State::S]; // or null
+    let mut vpath: Vec<usize> = vec![0];
     let mut prob = f64::INFINITY;
-    for (&prob_, i) in alpha.last().expect("empty seq").iter().zip(hmm::states()) {
+    for (i, &prob_) in alpha.last().expect("empty seq").iter().enumerate() {
         if prob_ < prob {
             vpath[0] = i;
             prob = prob_;
@@ -738,7 +721,7 @@ fn output(
     seq: Vec<u8>,
     whole_genome: bool,
     formatted: bool,
-    vpath: Vec<hmm::State>,
+    vpath: Vec<usize>,
     gene_len: usize,
     alpha: Vec<[f64; hmm::NUM_STATE]>,
 ) -> Vec<gene::Gene> {
@@ -753,17 +736,17 @@ fn output(
     let mut insert = vec![];
     let mut delete = vec![];
 
-    let mut prev_match = hmm::State::S; // or no state
+    let mut prev_match = 0;
 
     let mut start_orf = 0; // initialize?
 
     for t in 0..seq.len() {
         if codon_start == 0
             && start_t < 0
-            && ((vpath[t] >= hmm::State::M1 && vpath[t] <= hmm::State::M6)
-                || (vpath[t] >= hmm::State::M1r && vpath[t] <= hmm::State::M6r)
-                || vpath[t] == hmm::State::S
-                || vpath[t] == hmm::State::Sr)
+            && ((vpath[t] >= hmm::M1_STATE && vpath[t] <= hmm::M6_STATE)
+                || (vpath[t] >= hmm::M1_STATE_1 && vpath[t] <= hmm::M6_STATE_1)
+                || vpath[t] == hmm::S_STATE
+                || vpath[t] == hmm::S_STATE_1)
         {
             dna_start_t_withstop = t + 1;
             dna_start_t = t + 1;
@@ -772,10 +755,10 @@ fn output(
         }
 
         if codon_start == 0
-            && (vpath[t] == hmm::State::M1
-                || vpath[t] == hmm::State::M4
-                || vpath[t] == hmm::State::M1r
-                || vpath[t] == hmm::State::M4r)
+            && (vpath[t] == hmm::M1_STATE
+                || vpath[t] == hmm::M4_STATE
+                || vpath[t] == hmm::M1_STATE_1
+                || vpath[t] == hmm::M4_STATE_1)
         {
             dna.clear();
             dna_f.clear();
@@ -786,7 +769,7 @@ fn output(
             dna_f.push(seq[t]);
             dna_start_t_withstop = t + 1;
             dna_start_t = t + 1;
-            if vpath[t] == hmm::State::M1 || vpath[t] == hmm::State::M4r {
+            if vpath[t] == hmm::M1_STATE || vpath[t] == hmm::M4_STATE_1 {
                 if t > 2 {
                     dna_start_t_withstop = t - 2;
                 }
@@ -795,19 +778,19 @@ fn output(
             start_orf = t + 1;
             prev_match = vpath[t];
 
-            codon_start = if vpath[t] < hmm::State::M6 { 1 } else { -1 }
+            codon_start = if vpath[t] < hmm::M6_STATE { 1 } else { -1 }
         } else if codon_start != 0
-            && (vpath[t] == hmm::State::E || vpath[t] == hmm::State::Er || t == seq.len() - 1)
+            && (vpath[t] == hmm::E_STATE || vpath[t] == hmm::E_STATE_1 || t == seq.len() - 1)
         {
             let mut end_t;
-            if vpath[t] == hmm::State::E || vpath[t] == hmm::State::Er {
+            if vpath[t] == hmm::E_STATE || vpath[t] == hmm::E_STATE_1 {
                 end_t = t + 3
             } else {
                 let mut temp_t = t;
-                while vpath[temp_t] != hmm::State::M1
-                    && vpath[temp_t] != hmm::State::M4
-                    && vpath[temp_t] != hmm::State::M1r
-                    && vpath[temp_t] != hmm::State::M4r
+                while vpath[temp_t] != hmm::M1_STATE
+                    && vpath[temp_t] != hmm::M4_STATE
+                    && vpath[temp_t] != hmm::M1_STATE_1
+                    && vpath[temp_t] != hmm::M4_STATE_1
                 {
                     dna.pop();
                     dna_f.pop();
@@ -939,17 +922,14 @@ fn output(
             codon_start = 0;
             start_t = -1;
         } else if codon_start != 0
-            && ((vpath[t] >= hmm::State::M1
-                && vpath[t] <= hmm::State::M6
-                && prev_match >= hmm::State::M1)
-                || (vpath[t] >= hmm::State::M1r
-                    && vpath[t] <= hmm::State::M6r
-                    && prev_match >= hmm::State::M1r))
+            && ((vpath[t] >= hmm::M1_STATE && vpath[t] <= hmm::M6_STATE)
+                || (vpath[t] >= hmm::M1_STATE_1 && vpath[t] <= hmm::M6_STATE_1))
+            && vpath[t] < prev_match + 6
         {
             let out_nt = if vpath[t] < prev_match {
-                vpath[t] as usize + 6 - prev_match as usize
+                vpath[t] + 6 - prev_match
             } else {
-                vpath[t] as usize - prev_match as usize
+                vpath[t] - prev_match
             };
             for kk in 0..out_nt {
                 // for deleted nt in reads
@@ -965,12 +945,12 @@ fn output(
             dna_f.push(seq[t]);
             prev_match = vpath[t];
         } else if codon_start != 0
-            && ((vpath[t] >= hmm::State::I1 && vpath[t] <= hmm::State::I6)
-                || (vpath[t] >= hmm::State::I1r && vpath[t] <= hmm::State::I6r))
+            && ((vpath[t] >= hmm::I1_STATE && vpath[t] <= hmm::I6_STATE)
+                || (vpath[t] >= hmm::I1_STATE_1 && vpath[t] <= hmm::I6_STATE_1))
         {
             dna_f.push(seq[t].to_ascii_lowercase());
             insert.push(t + 1);
-        } else if codon_start != 0 && vpath[t] == hmm::State::R {
+        } else if codon_start != 0 && vpath[t] == hmm::R_STATE {
             // for long NNNNNNNN, pretend R state
             codon_start = 0;
             start_t = -1;
