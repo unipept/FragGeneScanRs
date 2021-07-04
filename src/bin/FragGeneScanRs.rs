@@ -16,7 +16,7 @@ extern crate seq_io;
 use seq_io::fasta;
 
 extern crate frag_gene_scan_rs;
-use frag_gene_scan_rs::dna::count_cg_content;
+use frag_gene_scan_rs::dna::{count_cg_content, Nuc};
 use frag_gene_scan_rs::hmm;
 use frag_gene_scan_rs::viterbi::viterbi;
 
@@ -185,11 +185,12 @@ fn run<R: Read, W: Write>(
     for record in fasta::Reader::new(inputseqs).into_records() {
         let fasta::OwnedRecord { mut head, seq } = record?;
         head = head.into_iter().take_while(u8::is_ascii_graphic).collect();
+        let nseq: Vec<Nuc> = seq.into_iter().map(Nuc::from).collect();
         let genes = viterbi(
             &global,
-            &locals[count_cg_content(&seq)],
+            &locals[count_cg_content(&nseq)],
             head,
-            seq,
+            nseq,
             whole_genome,
             formatted,
         );

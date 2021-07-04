@@ -7,6 +7,59 @@ pub const ACGT: usize = 4;
 pub const BI_ACGT: usize = 4 * 4;
 pub const TRI_ACGT: usize = 4 * 4 * 4;
 
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum Nuc {
+    A,
+    C,
+    G,
+    T,
+    N,
+}
+
+impl Nuc {
+    pub fn to_int(&self) -> Option<usize> {
+        match self {
+            Nuc::A => Some(0),
+            Nuc::C => Some(1),
+            Nuc::G => Some(2),
+            Nuc::T => Some(3),
+            Nuc::N => None,
+        }
+    }
+
+    pub fn to_lower(&self) -> u8 {
+        match self {
+            Nuc::A => b'a',
+            Nuc::C => b'c',
+            Nuc::G => b'g',
+            Nuc::T => b't',
+            Nuc::N => b'n',
+        }
+    }
+
+    pub fn to_upper(&self) -> u8 {
+        match self {
+            Nuc::A => b'A',
+            Nuc::C => b'C',
+            Nuc::G => b'G',
+            Nuc::T => b'T',
+            Nuc::N => b'N',
+        }
+    }
+}
+
+impl From<u8> for Nuc {
+    fn from(nt: u8) -> Nuc {
+        match nt {
+            b'A' => Nuc::A,
+            b'C' => Nuc::C,
+            b'G' => Nuc::G,
+            b'T' => Nuc::T,
+            _ => Nuc::N,
+        }
+    }
+}
+
 pub const CODON_CODE: [u8; TRI_ACGT] = [
     b'K', b'N', b'K', b'N', b'T', b'T', b'T', b'T', b'R', b'S', b'R', b'S', b'I', b'I', b'M', b'I',
     b'Q', b'H', b'Q', b'H', b'P', b'P', b'P', b'P', b'R', b'R', b'R', b'R', b'L', b'L', b'L', b'L',
@@ -21,18 +74,8 @@ pub const ANTI_CODON_CODE: [u8; TRI_ACGT] = [
     b'L', b'V', b'L', b'I', b'*', b'G', b'R', b'R', b'S', b'A', b'P', b'T', b'*', b'E', b'Q', b'K',
 ];
 
-pub fn nt2int(nt: u8) -> Option<usize> {
-    match nt {
-        b'A' => Some(0),
-        b'C' => Some(1),
-        b'G' => Some(2),
-        b'T' => Some(3),
-        _ => None,
-    }
-}
-
-pub fn trinucleotide(a: u8, b: u8, c: u8) -> Option<usize> {
-    if let (Some(a_), Some(b_), Some(c_)) = (nt2int(a), nt2int(b), nt2int(c)) {
+pub fn trinucleotide(a: Nuc, b: Nuc, c: Nuc) -> Option<usize> {
+    if let (Some(a_), Some(b_), Some(c_)) = (a.to_int(), b.to_int(), c.to_int()) {
         Some(16 * a_ + 4 * b_ + c_)
     } else {
         None
@@ -58,10 +101,10 @@ pub fn get_rc_dna(dna: &Vec<u8>) -> Vec<u8> {
         .collect()
 }
 
-pub fn count_cg_content(seq: &[u8]) -> usize {
+pub fn count_cg_content(seq: &[Nuc]) -> usize {
     let mut count = 0;
-    for l in seq.iter() {
-        if b"CcGg".contains(l) {
+    for &l in seq.iter() {
+        if l == Nuc::C || l == Nuc::G {
             count += 1;
         }
     }

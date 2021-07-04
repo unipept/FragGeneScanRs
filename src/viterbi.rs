@@ -1,11 +1,12 @@
-use crate::dna::{get_rc_dna, nt2int, trinucleotide};
+use crate::dna::Nuc::{A, C, G, N, T};
+use crate::dna::{get_rc_dna, trinucleotide, Nuc};
 use crate::{gene, hmm};
 
 pub fn viterbi(
     global: &hmm::Global,
     local: &hmm::Local,
     head: Vec<u8>,
-    seq: Vec<u8>,
+    seq: Vec<Nuc>,
     whole_genome: bool,
     formatted: bool,
 ) -> Vec<gene::Gene> {
@@ -26,10 +27,10 @@ pub fn viterbi(
     } // TODO broadcast operation
 
     // If the sequence starts with a stop codon
-    if seq[0] == b'T'
-        && ((seq[1] == b'A' && seq[2] == b'A')
-            || (seq[1] == b'A' && seq[2] == b'G')
-            || (seq[1] == b'G' && seq[2] == b'A'))
+    if seq[0] == T
+        && ((seq[1] == A && seq[2] == A)
+            || (seq[1] == A && seq[2] == G)
+            || (seq[1] == G && seq[2] == A))
     {
         alpha[0][hmm::E_STATE] = f64::INFINITY;
         alpha[1][hmm::E_STATE] = f64::INFINITY;
@@ -43,9 +44,9 @@ pub fn viterbi(
         alpha[1][hmm::M2_STATE] = f64::INFINITY;
         alpha[0][hmm::M1_STATE] = f64::INFINITY;
 
-        alpha[2][hmm::E_STATE] -= if seq[1] == b'A' && seq[2] == b'A' {
+        alpha[2][hmm::E_STATE] -= if seq[1] == A && seq[2] == A {
             0.53_f64.ln()
-        } else if seq[1] == b'A' && seq[2] == b'G' {
+        } else if seq[1] == A && seq[2] == G {
             0.16_f64.ln()
         } else {
             0.30_f64.ln()
@@ -53,10 +54,10 @@ pub fn viterbi(
     }
 
     // If the sequence starts with a reverse stop codon
-    if seq[2] == b'A'
-        && ((seq[1] == b'T' && seq[0] == b'T')
-            || (seq[1] == b'T' && seq[0] == b'C')
-            || (seq[1] == b'C' && seq[0] == b'T'))
+    if seq[2] == A
+        && ((seq[1] == T && seq[0] == T)
+            || (seq[1] == T && seq[0] == C)
+            || (seq[1] == C && seq[0] == T))
     {
         alpha[0][hmm::S_STATE_1] = f64::INFINITY;
         alpha[1][hmm::S_STATE_1] = f64::INFINITY;
@@ -67,9 +68,9 @@ pub fn viterbi(
         alpha[2][hmm::M3_STATE_1] = f64::INFINITY;
         alpha[2][hmm::M6_STATE_1] = f64::INFINITY;
 
-        alpha[2][hmm::S_STATE_1] = if seq[1] == b'T' && seq[0] == b'T' {
+        alpha[2][hmm::S_STATE_1] = if seq[1] == T && seq[0] == T {
             0.53_f64.ln()
-        } else if seq[1] == b'T' && seq[0] == b'C' {
+        } else if seq[1] == T && seq[0] == C {
             0.16_f64.ln()
         } else {
             0.30_f64.ln()
@@ -78,13 +79,13 @@ pub fn viterbi(
 
     let mut num_noncoding = 0; // number of invalid nts in sequence
     for t in 1..seq.len() {
-        let from = nt2int(seq[t - 1]).unwrap_or(2);
+        let from = (seq[t - 1]).to_int().unwrap_or(2);
         let from0 = if t > 1 {
-            nt2int(seq[t - 2]).unwrap_or(2)
+            (seq[t - 2]).to_int().unwrap_or(2)
         } else {
             2
         };
-        let to = nt2int(seq[t]).unwrap_or_else(|| {
+        let to = (seq[t]).to_int().unwrap_or_else(|| {
             num_noncoding += 1;
             2
         });
@@ -177,17 +178,17 @@ pub fn viterbi(
                 if t < 2 {
                 } else if (i == hmm::M2_STATE || i == hmm::M5_STATE)
                     && t + 1 < seq.len()
-                    && seq[temp_i[j - hmm::I1_STATE]] == b'T'
-                    && ((seq[t] == b'A' && seq[t + 1] == b'A')
-                        || (seq[t] == b'A' && seq[t + 1] == b'G')
-                        || (seq[t] == b'G' && seq[t + 1] == b'A'))
+                    && seq[temp_i[j - hmm::I1_STATE]] == T
+                    && ((seq[t] == A && seq[t + 1] == A)
+                        || (seq[t] == A && seq[t + 1] == G)
+                        || (seq[t] == G && seq[t + 1] == A))
                 {
                 } else if (i == hmm::M3_STATE || i == hmm::M6_STATE)
                     && temp_i[j - hmm::I1_STATE] > 0
-                    && (seq[temp_i[j - hmm::I1_STATE] - 1] == b'T')
-                    && ((seq[temp_i[j - hmm::I1_STATE]] == b'A' && seq[t] == b'A')
-                        || (seq[temp_i[j - hmm::I1_STATE]] == b'A' && seq[t] == b'G')
-                        || (seq[temp_i[j - hmm::I1_STATE]] == b'G' && seq[t] == b'A'))
+                    && (seq[temp_i[j - hmm::I1_STATE] - 1] == T)
+                    && ((seq[temp_i[j - hmm::I1_STATE]] == A && seq[t] == A)
+                        || (seq[temp_i[j - hmm::I1_STATE]] == A && seq[t] == G)
+                        || (seq[temp_i[j - hmm::I1_STATE]] == G && seq[t] == A))
                 {
                 } else {
                     let temp_alpha = alpha[t - 1][j] - global.tr.im - 0.25_f64.ln();
@@ -225,10 +226,10 @@ pub fn viterbi(
         for i in hmm::M1_STATE_1..=hmm::M6_STATE_1 {
             if (i == hmm::M1_STATE_1 || i == hmm::M4_STATE_1)
                 && t >= 3
-                && seq[t - 1] == b'A'
-                && ((seq[t - 2] == b'T' && seq[t - 3] == b'T')
-                    || (seq[t - 2] == b'T' && seq[t - 3] == b'C')
-                    || (seq[t - 2] == b'C' && seq[t - 3] == b'T'))
+                && seq[t - 1] == A
+                && ((seq[t - 2] == T && seq[t - 3] == T)
+                    || (seq[t - 2] == T && seq[t - 3] == C)
+                    || (seq[t - 2] == C && seq[t - 3] == T))
             {
                 // from Start state since this is actually a stop codon in minus strand
                 alpha[t][i] =
@@ -310,20 +311,20 @@ pub fn viterbi(
                 if t < 2 {
                 } else if (i == hmm::M2_STATE_1 || i == hmm::M5_STATE_1)
                     && t + 1 < seq.len()
-                    && seq[t + 1] == b'A'
-                    && ((seq[t] == b'T' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T')
-                        || (seq[t] == b'T' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'C')
-                        || (seq[t] == b'A' && seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T'))
+                    && seq[t + 1] == A
+                    && ((seq[t] == T && seq[temp_i_1[j - hmm::I1_STATE_1]] == T)
+                        || (seq[t] == T && seq[temp_i_1[j - hmm::I1_STATE_1]] == C)
+                        || (seq[t] == A && seq[temp_i_1[j - hmm::I1_STATE_1]] == T))
                 {
                 } else if (i == hmm::M3_STATE_1 || i == hmm::M6_STATE_1)
-                    && seq[t] == b'A'
+                    && seq[t] == A
                     && temp_i_1[j - hmm::I1_STATE_1] > 1
-                    && ((seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T'
-                        && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == b'T')
-                        || (seq[temp_i_1[j - hmm::I1_STATE_1]] == b'T'
-                            && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == b'C')
-                        || (seq[temp_i_1[j - hmm::I1_STATE_1]] == b'C'
-                            && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == b'T'))
+                    && ((seq[temp_i_1[j - hmm::I1_STATE_1]] == T
+                        && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == T)
+                        || (seq[temp_i_1[j - hmm::I1_STATE_1]] == T
+                            && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == C)
+                        || (seq[temp_i_1[j - hmm::I1_STATE_1]] == C
+                            && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == T))
                 {
                 } else {
                     let temp_alpha = alpha[t - 1][j] - global.tr.im - 0.25_f64.ln();
@@ -387,10 +388,10 @@ pub fn viterbi(
             path[t][hmm::E_STATE] = hmm::NOSTATE;
 
             if t < seq.len() - 2
-                && seq[t] == b'T'
-                && ((seq[t + 1] == b'A' && seq[t + 2] == b'A')
-                    || (seq[t + 1] == b'A' && seq[t + 2] == b'G')
-                    || (seq[t + 1] == b'G' && seq[t + 2] == b'A'))
+                && seq[t] == T
+                && ((seq[t + 1] == A && seq[t + 2] == A)
+                    || (seq[t + 1] == A && seq[t + 2] == G)
+                    || (seq[t + 1] == G && seq[t + 2] == A))
             {
                 alpha[t + 2][hmm::E_STATE] = f64::INFINITY;
 
@@ -420,9 +421,9 @@ pub fn viterbi(
                 alpha[t + 1][hmm::M2_STATE] = f64::INFINITY;
                 alpha[t][hmm::M1_STATE] = f64::INFINITY;
 
-                alpha[t + 2][hmm::E_STATE] -= if seq[t + 1] == b'A' && seq[t + 2] == b'A' {
+                alpha[t + 2][hmm::E_STATE] -= if seq[t + 1] == A && seq[t + 2] == A {
                     0.54_f64.ln()
-                } else if seq[t + 1] == b'A' && seq[t + 2] == b'G' {
+                } else if seq[t + 1] == A && seq[t + 2] == G {
                     0.16_f64.ln()
                 } else {
                     0.30_f64.ln()
@@ -472,10 +473,10 @@ pub fn viterbi(
             path[t][hmm::S_STATE_1] = hmm::NOSTATE;
 
             if t < seq.len() - 2
-                && seq[t + 2] == b'A'
-                && ((seq[t + 1] == b'T' && seq[t] == b'T')
-                    || (seq[t + 1] == b'T' && seq[t] == b'C')
-                    || (seq[t + 1] == b'C' && seq[t] == b'T'))
+                && seq[t + 2] == A
+                && ((seq[t + 1] == T && seq[t] == T)
+                    || (seq[t + 1] == T && seq[t] == C)
+                    || (seq[t + 1] == C && seq[t] == T))
             {
                 alpha[t][hmm::S_STATE_1] = f64::INFINITY;
                 alpha[t + 1][hmm::S_STATE_1] = f64::INFINITY;
@@ -499,9 +500,9 @@ pub fn viterbi(
                 alpha[t + 2][hmm::M3_STATE_1] = f64::INFINITY;
                 alpha[t + 2][hmm::M6_STATE_1] = f64::INFINITY;
 
-                alpha[t + 2][hmm::S_STATE_1] -= if seq[t + 1] == b'T' && seq[t] == b'T' {
+                alpha[t + 2][hmm::S_STATE_1] -= if seq[t + 1] == T && seq[t] == T {
                     0.54_f64.ln()
-                } else if seq[t + 1] == b'T' && seq[t] == b'C' {
+                } else if seq[t + 1] == T && seq[t] == C {
                     0.16_f64.ln()
                 } else {
                     0.30_f64.ln()
@@ -542,9 +543,9 @@ pub fn viterbi(
             path[t][hmm::S_STATE] = hmm::NOSTATE;
 
             if t < seq.len() - 2
-                && (seq[t] == b'A' || seq[t] == b'G' || seq[t] == b'T')
-                && seq[t + 1] == b'A'
-                && seq[t + 2] == b'G'
+                && (seq[t] == A || seq[t] == G || seq[t] == T)
+                && seq[t + 1] == A
+                && seq[t + 2] == G
             {
                 alpha[t][hmm::S_STATE] = f64::INFINITY;
                 alpha[t + 1][hmm::S_STATE] = f64::INFINITY;
@@ -565,9 +566,9 @@ pub fn viterbi(
                     path[t][hmm::S_STATE] = hmm::E_STATE_1;
                 }
 
-                alpha[t + 2][hmm::S_STATE] -= if seq[t] == b'A' {
+                alpha[t + 2][hmm::S_STATE] -= if seq[t] == A {
                     0.83_f64.ln()
-                } else if seq[t] == b'G' {
+                } else if seq[t] == G {
                     0.10_f64.ln()
                 } else {
                     0.07_f64.ln()
@@ -617,9 +618,9 @@ pub fn viterbi(
             path[t][hmm::E_STATE_1] = hmm::NOSTATE;
 
             if t < seq.len() - 2
-                && seq[t] == b'C'
-                && seq[t + 1] == b'A'
-                && (seq[t + 2] == b'T' || seq[t + 2] == b'C' || seq[t + 2] == b'A')
+                && seq[t] == C
+                && seq[t + 1] == A
+                && (seq[t + 2] == T || seq[t + 2] == C || seq[t + 2] == A)
             {
                 // transition from frame6
                 alpha[t][hmm::E_STATE_1] = f64::INFINITY;
@@ -629,9 +630,9 @@ pub fn viterbi(
                 path[t + 1][hmm::E_STATE_1] = hmm::E_STATE_1;
                 path[t + 2][hmm::E_STATE_1] = hmm::E_STATE_1;
 
-                alpha[t + 2][hmm::E_STATE_1] -= if seq[t + 2] == b'T' {
+                alpha[t + 2][hmm::E_STATE_1] -= if seq[t + 2] == T {
                     0.83_f64.ln()
-                } else if seq[t + 2] == b'C' {
+                } else if seq[t + 2] == C {
                     0.10_f64.ln()
                 } else {
                     0.07_f64.ln()
@@ -718,7 +719,7 @@ fn backtrack(alpha: &Vec<[f64; hmm::NUM_STATE]>, path: Vec<[usize; hmm::NUM_STAT
 fn output(
     local: &hmm::Local,
     head: Vec<u8>,
-    seq: Vec<u8>,
+    seq: Vec<Nuc>,
     whole_genome: bool,
     formatted: bool,
     vpath: Vec<usize>,
@@ -731,8 +732,8 @@ fn output(
     let mut dna_start_t_withstop: usize = 0;
     let mut dna_start_t: usize = 0;
 
-    let mut dna = vec![];
-    let mut dna_f = vec![];
+    let mut dna: Vec<Nuc> = vec![];
+    let mut dna_f: Vec<u8> = vec![];
     let mut insert = vec![];
     let mut delete = vec![];
 
@@ -766,7 +767,7 @@ fn output(
             delete.clear();
 
             dna.push(seq[t]);
-            dna_f.push(seq[t]);
+            dna_f.push(seq[t].to_upper());
             dna_start_t_withstop = t + 1;
             dna_start_t = t + 1;
             if vpath[t] == hmm::M1_STATE || vpath[t] == hmm::M4_STATE_1 {
@@ -821,10 +822,10 @@ fn output(
                         // find the optimal start codon within 30bp up- and downstream of start codon
                         let mut e_save = 0.0;
                         let mut s_save = 0;
-                        while !(codon != b"TAA" || codon != b"TAG" || codon != b"TGA")
+                        while !(codon != [T, A, A] || codon != [T, A, G] || codon != [T, G, A])
                             && start_old >= 1 + s + 35
                         {
-                            if codon != b"ATG" || codon != b"GTG" || codon != b"TTG" {
+                            if codon != [A, T, G] || codon != [G, T, G] || codon != [T, T, G] {
                                 let utr = &seq[start_old - 1 - s - 30..start_old - 1 - s - 30 + 63];
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
@@ -861,7 +862,7 @@ fn output(
                         dna_ffn: if formatted {
                             dna_f.clone()
                         } else {
-                            dna.clone()
+                            dna.iter().map(|c| c.to_upper()).collect()
                         },
                         forward_strand: true,
                         inserted: insert.clone(),
@@ -877,10 +878,10 @@ fn output(
                         // find the optimal start codon within 30bp up- and downstream of start codon
                         let mut e_save = 0.0;
                         let mut s_save = 0;
-                        while !(codon != b"TAA" || codon != b"TAG" || codon != b"TGA")
+                        while !(codon != [T, A, A] || codon != [T, A, G] || codon != [T, G, A])
                             && end_old - 2 + s + 35 < seq.len()
                         {
-                            if codon != b"ATG" || codon != b"GTG" || codon != b"TTG" {
+                            if codon != [A, T, G] || codon != [G, T, G] || codon != [T, T, G] {
                                 let utr = &seq[end_old - 1 - 2 + s - 30..end_old + s + 30];
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
@@ -911,7 +912,10 @@ fn output(
                         frame: frame,
                         score: final_score,
                         dna: dna.clone(),
-                        dna_ffn: get_rc_dna(if formatted { &dna_f } else { &dna }),
+                        dna_ffn: {
+                            let rev = dna.iter().map(|c| c.to_upper()).collect(); // TODO
+                            get_rc_dna(if formatted { &dna_f } else { &rev })
+                        },
                         forward_strand: false,
                         inserted: insert.clone(),
                         deleted: delete.clone(),
@@ -933,7 +937,7 @@ fn output(
             };
             for kk in 0..out_nt {
                 // for deleted nt in reads
-                dna.push(b'N');
+                dna.push(N);
                 dna_f.push(b'x');
                 if kk > 0 {
                     delete.push(t + 1);
@@ -942,13 +946,13 @@ fn output(
             dna.pop();
             dna_f.pop();
             dna.push(seq[t]);
-            dna_f.push(seq[t]);
+            dna_f.push(seq[t].to_upper());
             prev_match = vpath[t];
         } else if codon_start != 0
             && ((vpath[t] >= hmm::I1_STATE && vpath[t] <= hmm::I6_STATE)
                 || (vpath[t] >= hmm::I1_STATE_1 && vpath[t] <= hmm::I6_STATE_1))
         {
-            dna_f.push(seq[t].to_ascii_lowercase());
+            dna_f.push(seq[t].to_lower());
             insert.push(t + 1);
         } else if codon_start != 0 && vpath[t] == hmm::R_STATE {
             // for long NNNNNNNN, pretend R state

@@ -9,7 +9,8 @@ use seq_io::fasta::Record;
 extern crate thiserror;
 use thiserror::Error;
 
-use crate::dna::{trinucleotide, ANTI_CODON_CODE, CODON_CODE};
+use crate::dna::Nuc::{A, C, G, T};
+use crate::dna::{trinucleotide, Nuc, ANTI_CODON_CODE, CODON_CODE};
 
 pub struct Gene {
     pub head: Vec<u8>,
@@ -18,7 +19,7 @@ pub struct Gene {
     pub end: usize,
     pub frame: usize,
     pub score: f64,
-    pub dna: Vec<u8>,
+    pub dna: Vec<Nuc>,
     pub dna_ffn: Vec<u8>,
     pub forward_strand: bool,
     pub inserted: Vec<usize>,
@@ -101,7 +102,7 @@ impl Gene {
         if whole_genome {
             if self.forward_strand {
                 let s = trinucleotide(self.dna[0], self.dna[1], self.dna[2]);
-                if s == trinucleotide(b'G', b'T', b'G') || s == trinucleotide(b'T', b'T', b'G') {
+                if s == trinucleotide(G, T, G) || s == trinucleotide(T, T, G) {
                     protein[0] = b'M';
                 }
             } else {
@@ -110,7 +111,7 @@ impl Gene {
                     self.dna[self.dna.len() - 2],
                     self.dna[self.dna.len() - 1],
                 );
-                if s == trinucleotide(b'C', b'A', b'C') || s == trinucleotide(b'C', b'A', b'A') {
+                if s == trinucleotide(C, A, C) || s == trinucleotide(C, A, A) {
                     protein[0] = b'M';
                 }
             }
