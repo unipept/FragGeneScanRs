@@ -192,14 +192,13 @@ fn run<R: Read, W: Write>(
             head,
             nseq,
             whole_genome,
-            formatted,
         );
         for gene in genes {
             if let Some(metastream) = metastream {
                 gene.print_meta(metastream)?;
             }
             if let Some(dnastream) = dnastream {
-                gene.print_dna(dnastream)?;
+                gene.print_dna(dnastream, formatted)?;
             }
             if let Some(aastream) = aastream {
                 gene.print_protein(whole_genome, aastream)?;

@@ -1,5 +1,5 @@
-use crate::dna::Nuc::{A, C, G, N, T};
-use crate::dna::{get_rc_dna, trinucleotide, Nuc};
+use crate::dna::Nuc::{A, C, G, T};
+use crate::dna::{trinucleotide, Nuc};
 use crate::{gene, hmm};
 
 pub fn viterbi(
@@ -8,7 +8,6 @@ pub fn viterbi(
     head: Vec<u8>,
     seq: Vec<Nuc>,
     whole_genome: bool,
-    formatted: bool,
 ) -> Vec<gene::Gene> {
     let gene_len = if whole_genome { 120 } else { 60 }; // minimum length to be output
 
@@ -685,16 +684,7 @@ pub fn viterbi(
     }
 
     let vpath = backtrack(&alpha, path);
-    output(
-        &local,
-        head,
-        seq,
-        whole_genome,
-        formatted,
-        vpath,
-        gene_len,
-        alpha,
-    )
+    output(&local, head, seq, whole_genome, vpath, gene_len, alpha)
 }
 
 fn backtrack(alpha: &Vec<[f64; hmm::NUM_STATE]>, path: Vec<[usize; hmm::NUM_STATE]>) -> Vec<usize> {
@@ -721,7 +711,6 @@ fn output(
     head: Vec<u8>,
     seq: Vec<Nuc>,
     whole_genome: bool,
-    formatted: bool,
     vpath: Vec<usize>,
     gene_len: usize,
     alpha: Vec<[f64; hmm::NUM_STATE]>,
@@ -733,7 +722,6 @@ fn output(
     let mut dna_start_t: usize = 0;
 
     let mut dna: Vec<Nuc> = vec![];
-    let mut dna_f: Vec<u8> = vec![];
     let mut insert = vec![];
     let mut delete = vec![];
 
@@ -762,12 +750,10 @@ fn output(
                 || vpath[t] == hmm::M4_STATE_1)
         {
             dna.clear();
-            dna_f.clear();
             insert.clear();
             delete.clear();
 
             dna.push(seq[t]);
-            dna_f.push(seq[t].to_upper());
             dna_start_t_withstop = t + 1;
             dna_start_t = t + 1;
             if vpath[t] == hmm::M1_STATE || vpath[t] == hmm::M4_STATE_1 {
@@ -794,7 +780,6 @@ fn output(
                     && vpath[temp_t] != hmm::M4_STATE_1
                 {
                     dna.pop();
-                    dna_f.pop();
                     temp_t -= 1;
                 }
                 end_t = temp_t;
@@ -859,11 +844,6 @@ fn output(
                         frame: frame,
                         score: final_score,
                         dna: dna.clone(),
-                        dna_ffn: if formatted {
-                            dna_f.clone()
-                        } else {
-                            dna.iter().map(|c| c.to_upper()).collect()
-                        },
                         forward_strand: true,
                         inserted: insert.clone(),
                         deleted: delete.clone(),
@@ -912,10 +892,6 @@ fn output(
                         frame: frame,
                         score: final_score,
                         dna: dna.clone(),
-                        dna_ffn: {
-                            let rev = dna.iter().map(|c| c.to_upper()).collect(); // TODO
-                            get_rc_dna(if formatted { &dna_f } else { &rev })
-                        },
                         forward_strand: false,
                         inserted: insert.clone(),
                         deleted: delete.clone(),
@@ -937,22 +913,19 @@ fn output(
             };
             for kk in 0..out_nt {
                 // for deleted nt in reads
-                dna.push(N);
-                dna_f.push(b'x');
+                dna.push(Nuc::Xi);
                 if kk > 0 {
                     delete.push(t + 1);
                 }
             }
             dna.pop();
-            dna_f.pop();
             dna.push(seq[t]);
-            dna_f.push(seq[t].to_upper());
             prev_match = vpath[t];
         } else if codon_start != 0
             && ((vpath[t] >= hmm::I1_STATE && vpath[t] <= hmm::I6_STATE)
                 || (vpath[t] >= hmm::I1_STATE_1 && vpath[t] <= hmm::I6_STATE_1))
         {
-            dna_f.push(seq[t].to_lower());
+            dna.push(seq[t].to_lower());
             insert.push(t + 1);
         } else if codon_start != 0 && vpath[t] == hmm::R_STATE {
             // for long NNNNNNNN, pretend R state

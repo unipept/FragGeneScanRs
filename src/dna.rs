@@ -14,36 +14,57 @@ pub enum Nuc {
     G,
     T,
     N,
+    Ai,
+    Ci,
+    Gi,
+    Ti,
+    Ni,
+    Xi,
 }
 
 impl Nuc {
     pub fn to_int(&self) -> Option<usize> {
         match self {
-            Nuc::A => Some(0),
-            Nuc::C => Some(1),
-            Nuc::G => Some(2),
-            Nuc::T => Some(3),
-            Nuc::N => None,
+            Nuc::A | Nuc::Ai => Some(0),
+            Nuc::C | Nuc::Ci => Some(1),
+            Nuc::G | Nuc::Gi => Some(2),
+            Nuc::T | Nuc::Ti => Some(3),
+            Nuc::N | Nuc::Ni => None,
+            Nuc::Xi => None,
         }
     }
 
-    pub fn to_lower(&self) -> u8 {
+    pub fn to_lower(&self) -> Nuc {
         match self {
-            Nuc::A => b'a',
-            Nuc::C => b'c',
-            Nuc::G => b'g',
-            Nuc::T => b't',
-            Nuc::N => b'n',
+            Nuc::A | Nuc::Ai => Nuc::Ai,
+            Nuc::C | Nuc::Ci => Nuc::Ci,
+            Nuc::G | Nuc::Gi => Nuc::Gi,
+            Nuc::T | Nuc::Ti => Nuc::Ti,
+            Nuc::N | Nuc::Ni => Nuc::Ni,
+            Nuc::Xi => Nuc::Xi,
         }
     }
 
-    pub fn to_upper(&self) -> u8 {
+    pub fn is_insertion(&self) -> bool {
         match self {
-            Nuc::A => b'A',
-            Nuc::C => b'C',
-            Nuc::G => b'G',
-            Nuc::T => b'T',
-            Nuc::N => b'N',
+            Nuc::Ai | Nuc::Ci | Nuc::Gi | Nuc::Ti | Nuc::Ni => true,
+            _ => false,
+        }
+    }
+
+    pub fn rc(&self) -> Nuc {
+        match self {
+            Nuc::A => Nuc::T,
+            Nuc::C => Nuc::G,
+            Nuc::G => Nuc::C,
+            Nuc::T => Nuc::A,
+            Nuc::N => Nuc::N,
+            Nuc::Ai => Nuc::Ti,
+            Nuc::Ci => Nuc::Gi,
+            Nuc::Gi => Nuc::Ci,
+            Nuc::Ti => Nuc::Ai,
+            Nuc::Ni => Nuc::Ni,
+            Nuc::Xi => Nuc::Xi,
         }
     }
 }
@@ -51,11 +72,30 @@ impl Nuc {
 impl From<u8> for Nuc {
     fn from(nt: u8) -> Nuc {
         match nt {
-            b'A' => Nuc::A,
-            b'C' => Nuc::C,
-            b'G' => Nuc::G,
-            b'T' => Nuc::T,
+            b'A' | b'a' => Nuc::A,
+            b'C' | b'c' => Nuc::C,
+            b'G' | b'g' => Nuc::G,
+            b'T' | b't' => Nuc::T,
+            b'x' => Nuc::Xi,
             _ => Nuc::N,
+        }
+    }
+}
+
+impl From<Nuc> for u8 {
+    fn from(nt: Nuc) -> u8 {
+        match nt {
+            Nuc::A => b'A',
+            Nuc::C => b'C',
+            Nuc::G => b'G',
+            Nuc::T => b'T',
+            Nuc::N => b'N',
+            Nuc::Ai => b'a',
+            Nuc::Ci => b'c',
+            Nuc::Gi => b'g',
+            Nuc::Ti => b't',
+            Nuc::Ni => b'n',
+            Nuc::Xi => b'N',
         }
     }
 }
@@ -80,25 +120,6 @@ pub fn trinucleotide(a: Nuc, b: Nuc, c: Nuc) -> Option<usize> {
     } else {
         None
     }
-}
-
-pub fn get_rc_dna(dna: &Vec<u8>) -> Vec<u8> {
-    dna.iter()
-        .rev()
-        .map(|c| match c {
-            b'A' => b'T',
-            b'C' => b'G',
-            b'G' => b'C',
-            b'T' => b'A',
-            b'a' => b't',
-            b'c' => b'g',
-            b'g' => b'c',
-            b't' => b'a',
-            b'N' => b'N',
-            b'n' => b'n',
-            _ => b'x',
-        })
-        .collect()
 }
 
 pub fn count_cg_content(seq: &[Nuc]) -> usize {

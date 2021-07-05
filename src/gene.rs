@@ -20,7 +20,6 @@ pub struct Gene {
     pub frame: usize,
     pub score: f64,
     pub dna: Vec<Nuc>,
-    pub dna_ffn: Vec<u8>,
     pub forward_strand: bool,
     pub inserted: Vec<usize>,
     pub deleted: Vec<usize>,
@@ -52,7 +51,24 @@ impl Gene {
         Ok(())
     }
 
-    pub fn print_dna(&self, file: &mut File) -> Result<(), GeneError> {
+    pub fn print_dna(&self, file: &mut File, formatted: bool) -> Result<(), GeneError> {
+        let dna: Vec<u8> = match (self.forward_strand, formatted) {
+            (true, true) => self.dna.iter().map(|&n| u8::from(n)).collect(),
+            (true, false) => self
+                .dna
+                .iter()
+                .filter(|n| !n.is_insertion())
+                .map(|&n| u8::from(n))
+                .collect(),
+            (false, true) => self.dna.iter().rev().map(|&n| u8::from(n.rc())).collect(),
+            (false, false) => self
+                .dna
+                .iter()
+                .rev()
+                .filter(|n| !n.is_insertion())
+                .map(|&n| u8::from(n.rc()))
+                .collect(),
+        };
         fasta::OwnedRecord {
             head: format!(
                 "{}_{}_{}_{}",
@@ -62,7 +78,7 @@ impl Gene {
                 if self.forward_strand { '+' } else { '-' }
             )
             .into_bytes(),
-            seq: self.dna_ffn.clone(),
+            seq: dna,
         }
         .write(file)?;
         Ok(())
@@ -73,9 +89,14 @@ impl Gene {
         whole_genome: bool,
         file: &mut W,
     ) -> Result<(), GeneError> {
+        let dna = self
+            .dna
+            .iter()
+            .filter(|n| !n.is_insertion())
+            .map(|&n| n)
+            .collect::<Vec<Nuc>>();
         let mut protein: Vec<u8> = if self.forward_strand {
-            self.dna
-                .chunks_exact(3)
+            dna.chunks_exact(3)
                 .map(|c| {
                     trinucleotide(c[0], c[1], c[2])
                         .map(|i| CODON_CODE[i])
@@ -83,8 +104,7 @@ impl Gene {
                 })
                 .collect()
         } else {
-            self.dna
-                .rchunks_exact(3)
+            dna.rchunks_exact(3)
                 .map(|c| {
                     trinucleotide(c[0], c[1], c[2])
                         .map(|i| ANTI_CODON_CODE[i])
