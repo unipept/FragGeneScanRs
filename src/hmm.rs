@@ -68,7 +68,7 @@ pub struct Transition {
     pub es1: f64,
 }
 
-const PERIOD: usize = 6;
+pub const PERIOD: usize = 6;
 const WINDOW: usize = 61;
 
 #[derive(Default)]

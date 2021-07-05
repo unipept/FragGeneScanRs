@@ -13,8 +13,8 @@ pub fn viterbi(
 
     let mut alpha: Vec<[f64; hmm::NUM_STATE]> = vec![];
     let mut path: Vec<[usize; hmm::NUM_STATE]> = vec![];
-    let mut temp_i: [usize; 6] = [0; 6];
-    let mut temp_i_1: [usize; 6] = [0; 6];
+    let mut temp_i: [usize; hmm::PERIOD] = [0; hmm::PERIOD];
+    let mut temp_i_1: [usize; hmm::PERIOD] = [0; hmm::PERIOD];
 
     for _ in 0..seq.len() {
         alpha.push([0.0; hmm::NUM_STATE]);
@@ -106,7 +106,7 @@ pub fn viterbi(
                     if !whole_genome {
                         for j in (hmm::M1_STATE..=hmm::M5_STATE).rev() {
                             let num_d = if j >= i {
-                                (i + 6 - j) as i32
+                                (i + hmm::PERIOD - j) as i32
                             } else if j + 1 < i {
                                 (i - j) as i32
                             } else {
@@ -144,7 +144,7 @@ pub fn viterbi(
                     if !whole_genome {
                         for j in (hmm::M1_STATE..=hmm::M6_STATE).rev() {
                             let num_d = if j >= i {
-                                (i + 6 - j) as i32
+                                (i + hmm::PERIOD - j) as i32
                             } else if j + 1 < i {
                                 (i - j) as i32
                             } else {
@@ -200,26 +200,18 @@ pub fn viterbi(
         }
 
         // I state
-        for i in hmm::I1_STATE..=hmm::I6_STATE {
-            // from I state
-            alpha[t][i] = alpha[t - 1][i] - global.tr.ii - global.tr_ii[from][to];
-            path[t][i] = i;
-
-            // from M state
-            let temp_alpha = alpha[t - 1][i - hmm::I1_STATE + hmm::M1_STATE]
-                - global.tr.mi
-                - global.tr_mi[from][to]
-                - if i == hmm::I6_STATE {
-                    global.tr.gg
-                } else {
-                    0.0
-                };
-            if temp_alpha < alpha[t][i] {
-                alpha[t][i] = temp_alpha;
-                path[t][i] = i - hmm::I1_STATE + hmm::M1_STATE;
-                temp_i[i - hmm::I1_STATE] = t - 1;
-            }
-        }
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I1_STATE);
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I2_STATE);
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I3_STATE);
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I4_STATE);
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I5_STATE);
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I6_STATE);
+        #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i[0], global, t, from, to, hmm::M1_STATE, hmm::I1_STATE, 0.0);
+        #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i[1], global, t, from, to, hmm::M2_STATE, hmm::I2_STATE, 0.0);
+        #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i[2], global, t, from, to, hmm::M3_STATE, hmm::I3_STATE, 0.0);
+        #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i[3], global, t, from, to, hmm::M4_STATE, hmm::I4_STATE, 0.0);
+        #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i[4], global, t, from, to, hmm::M5_STATE, hmm::I5_STATE, 0.0);
+        #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i[5], global, t, from, to, hmm::M6_STATE, hmm::I6_STATE, global.tr.gg);
 
         // M' state
         for i in hmm::M1_STATE_1..=hmm::M6_STATE_1 {
@@ -247,7 +239,7 @@ pub fn viterbi(
                     if !whole_genome {
                         for j in (hmm::M1_STATE_1..=hmm::M5_STATE_1).rev() {
                             let num_d = if j >= i {
-                                (i + 6 - j) as i32
+                                (i + hmm::PERIOD - j) as i32
                             } else if j + 1 < i {
                                 (i - j) as i32
                             } else {
@@ -277,7 +269,7 @@ pub fn viterbi(
                     if !whole_genome {
                         for j in (hmm::M1_STATE_1..=hmm::M6_STATE_1).rev() {
                             let num_d = if j >= i {
-                                (i + 6 - j) as i32
+                                (i + hmm::PERIOD - j) as i32
                             } else if j + 1 < i {
                                 (i - j) as i32
                             } else {
@@ -336,30 +328,23 @@ pub fn viterbi(
         }
 
         // I' state
-        for i in hmm::I1_STATE_1..=hmm::I6_STATE_1 {
-            // from I state
-            alpha[t][i] = alpha[t - 1][i] - global.tr.ii - global.tr_ii[from][to];
-            path[t][i] = i;
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I1_STATE_1);
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I2_STATE_1);
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I3_STATE_1);
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I4_STATE_1);
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I5_STATE_1);
+        from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I6_STATE_1);
 
-            // from M state
-            if (t >= 3 && path[t - 3][hmm::S_STATE_1] != hmm::R_STATE)
-                && (t >= 4 && path[t - 4][hmm::S_STATE_1] != hmm::R_STATE)
-                && (t >= 5 && path[t - 5][hmm::S_STATE_1] != hmm::R_STATE)
-            {
-                let temp_alpha = alpha[t - 1][i - hmm::I1_STATE_1 + hmm::M1_STATE_1]
-                    - global.tr.mi
-                    - global.tr_mi[from][to]
-                    - if i == hmm::I6_STATE_1 {
-                        global.tr.gg
-                    } else {
-                        0.0
-                    };
-                if temp_alpha < alpha[t][i] {
-                    alpha[t][i] = temp_alpha;
-                    path[t][i] = i - hmm::I1_STATE_1 + hmm::M1_STATE_1;
-                    temp_i_1[i - hmm::I1_STATE_1] = t - 1;
-                }
-            }
+        if (t >= 3 && path[t - 3][hmm::S_STATE_1] != hmm::R_STATE)
+            && (t >= 4 && path[t - 4][hmm::S_STATE_1] != hmm::R_STATE)
+            && (t >= 5 && path[t - 5][hmm::S_STATE_1] != hmm::R_STATE)
+        {
+            #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i_1[0], global, t, from, to, hmm::M1_STATE_1, hmm::I1_STATE_1, 0.0);
+            #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i_1[1], global, t, from, to, hmm::M2_STATE_1, hmm::I2_STATE_1, 0.0);
+            #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i_1[2], global, t, from, to, hmm::M3_STATE_1, hmm::I3_STATE_1, 0.0);
+            #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i_1[3], global, t, from, to, hmm::M4_STATE_1, hmm::I4_STATE_1, 0.0);
+            #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i_1[4], global, t, from, to, hmm::M5_STATE_1, hmm::I5_STATE_1, 0.0);
+            #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i_1[5], global, t, from, to, hmm::M6_STATE_1, hmm::I6_STATE_1, global.tr.gg);
         }
 
         // non_coding state
@@ -904,10 +889,10 @@ fn output(
         } else if codon_start != 0
             && ((vpath[t] >= hmm::M1_STATE && vpath[t] <= hmm::M6_STATE)
                 || (vpath[t] >= hmm::M1_STATE_1 && vpath[t] <= hmm::M6_STATE_1))
-            && vpath[t] < prev_match + 6
+            && vpath[t] < prev_match + hmm::PERIOD
         {
             let out_nt = if vpath[t] < prev_match {
-                vpath[t] + 6 - prev_match
+                vpath[t] + hmm::PERIOD - prev_match
             } else {
                 vpath[t] - prev_match
             };
@@ -935,4 +920,37 @@ fn output(
     }
 
     genes
+}
+
+fn from_i_to_i(
+    alpha: &mut Vec<[f64; 29]>,
+    path: &mut Vec<[usize; 29]>,
+    global: &hmm::Global,
+    t: usize,
+    from: usize,
+    to: usize,
+    i: usize,
+) {
+    alpha[t][i] = alpha[t - 1][i] - global.tr.ii - global.tr_ii[from][to];
+    path[t][i] = i;
+}
+
+fn from_m_to_i(
+    alpha: &mut Vec<[f64; 29]>,
+    path: &mut Vec<[usize; 29]>,
+    temp_i: &mut usize,
+    global: &hmm::Global,
+    t: usize,
+    from: usize,
+    to: usize,
+    from_m: usize,
+    to_i: usize,
+    last_i: f64,
+) {
+    let temp_alpha = alpha[t - 1][from_m] - global.tr.mi - global.tr_mi[from][to] - last_i;
+    if temp_alpha < alpha[t][to_i] {
+        alpha[t][to_i] = temp_alpha;
+        path[t][to_i] = from_m;
+        *temp_i = t - 1;
+    }
 }
