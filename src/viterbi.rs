@@ -92,78 +92,78 @@ pub fn viterbi(
 
         // M state
         if alpha[t][hmm::M1_STATE].is_finite() {
-            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M6_STATE, hmm::M1_STATE, 0, global.tr.gg);
+            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE, hmm::M1_STATE, local.e_m[0][from2][to], global.tr.gg);
             if !whole_genome {
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M5_STATE, hmm::M1_STATE, 2.0, 0);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M4_STATE, hmm::M1_STATE, 3.0, 0);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M3_STATE, hmm::M1_STATE, 4.0, 0);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M2_STATE, hmm::M1_STATE, 5.0, 0);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M1_STATE, hmm::M1_STATE, 6.0, 0);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE, hmm::M1_STATE, 2.0, local.e_m[0][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE, hmm::M1_STATE, 3.0, local.e_m[0][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE, hmm::M1_STATE, 4.0, local.e_m[0][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE, hmm::M1_STATE, 5.0, local.e_m[0][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE, hmm::M1_STATE, 6.0, local.e_m[0][from2][to]);
             }
-            from_s_to_m1(&mut alpha, &mut path, local, t, from2, to);
+            from_s_to_m(&mut alpha, &mut path, local, t, from2, to);
             #[rustfmt::skip] from_i_to_m(&mut alpha, &mut path, &seq, temp_i[5], global, t, hmm::I6_STATE, hmm::M1_STATE);
         }
 
         if alpha[t][hmm::M2_STATE].is_finite() {
-            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M1_STATE, hmm::M2_STATE, 1, 0.0);
+            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE, hmm::M2_STATE, local.e_m[1][from2][to], 0.0);
             if !whole_genome {
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M6_STATE, hmm::M2_STATE, 2.0, 1);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M5_STATE, hmm::M2_STATE, 3.0, 1);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M4_STATE, hmm::M2_STATE, 4.0, 1);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M3_STATE, hmm::M2_STATE, 5.0, 1);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M2_STATE, hmm::M2_STATE, 6.0, 1);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE, hmm::M2_STATE, 2.0, local.e_m[1][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE, hmm::M2_STATE, 3.0, local.e_m[1][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE, hmm::M2_STATE, 4.0, local.e_m[1][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE, hmm::M2_STATE, 5.0, local.e_m[1][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE, hmm::M2_STATE, 6.0, local.e_m[1][from2][to]);
             }
 
             #[rustfmt::skip] from_i_to_m(&mut alpha, &mut path, &seq, temp_i[0], global, t, hmm::I1_STATE, hmm::M2_STATE);
         }
 
         if alpha[t][hmm::M3_STATE].is_finite() {
-            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M2_STATE, hmm::M3_STATE, 2, 0.0);
+            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE, hmm::M3_STATE, local.e_m[2][from2][to], 0.0);
             if !whole_genome {
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M6_STATE, hmm::M3_STATE, 3.0, 2);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M5_STATE, hmm::M3_STATE, 4.0, 2);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M4_STATE, hmm::M3_STATE, 5.0, 2);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M3_STATE, hmm::M3_STATE, 6.0, 2);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M1_STATE, hmm::M3_STATE, 2.0, 2);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE, hmm::M3_STATE, 3.0, local.e_m[2][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE, hmm::M3_STATE, 4.0, local.e_m[2][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE, hmm::M3_STATE, 5.0, local.e_m[2][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE, hmm::M3_STATE, 6.0, local.e_m[2][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE, hmm::M3_STATE, 2.0, local.e_m[2][from2][to]);
             }
 
             #[rustfmt::skip] from_i_to_m(&mut alpha, &mut path, &seq, temp_i[1], global, t, hmm::I2_STATE, hmm::M3_STATE);
         }
 
         if alpha[t][hmm::M4_STATE].is_finite() {
-            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M3_STATE, hmm::M4_STATE, 3, 0.0);
+            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE, hmm::M4_STATE, local.e_m[3][from2][to], 0.0);
             if !whole_genome {
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M6_STATE, hmm::M4_STATE, 4.0, 3);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M5_STATE, hmm::M4_STATE, 5.0, 3);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M4_STATE, hmm::M4_STATE, 6.0, 3);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M2_STATE, hmm::M4_STATE, 2.0, 3);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M1_STATE, hmm::M4_STATE, 3.0, 3);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE, hmm::M4_STATE, 4.0, local.e_m[3][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE, hmm::M4_STATE, 5.0, local.e_m[3][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE, hmm::M4_STATE, 6.0, local.e_m[3][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE, hmm::M4_STATE, 2.0, local.e_m[3][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE, hmm::M4_STATE, 3.0, local.e_m[3][from2][to]);
             }
 
             #[rustfmt::skip] from_i_to_m(&mut alpha, &mut path, &seq, temp_i[2], global, t, hmm::I3_STATE, hmm::M4_STATE);
         }
 
         if alpha[t][hmm::M5_STATE].is_finite() {
-            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M4_STATE, hmm::M5_STATE, 4, 0.0);
+            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE, hmm::M5_STATE, local.e_m[4][from2][to], 0.0);
             if !whole_genome {
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M6_STATE, hmm::M5_STATE, 5.0, 4);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M5_STATE, hmm::M5_STATE, 6.0, 4);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M3_STATE, hmm::M5_STATE, 2.0, 4);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M2_STATE, hmm::M5_STATE, 3.0, 4);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M1_STATE, hmm::M5_STATE, 4.0, 4);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE, hmm::M5_STATE, 5.0, local.e_m[4][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE, hmm::M5_STATE, 6.0, local.e_m[4][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE, hmm::M5_STATE, 2.0, local.e_m[4][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE, hmm::M5_STATE, 3.0, local.e_m[4][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE, hmm::M5_STATE, 4.0, local.e_m[4][from2][to]);
             }
 
             #[rustfmt::skip] from_i_to_m(&mut alpha, &mut path, &seq, temp_i[3], global, t, hmm::I4_STATE, hmm::M5_STATE);
         }
 
         if alpha[t][hmm::M6_STATE].is_finite() {
-            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M5_STATE, hmm::M6_STATE, 5, 0.0);
+            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE, hmm::M6_STATE, local.e_m[5][from2][to], 0.0);
             if !whole_genome {
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M6_STATE, hmm::M6_STATE, 6.0, 5);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M4_STATE, hmm::M6_STATE, 2.0, 5);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M3_STATE, hmm::M6_STATE, 3.0, 5);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M2_STATE, hmm::M6_STATE, 4.0, 5);
-                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, local, t, from2, to, hmm::M1_STATE, hmm::M6_STATE, 5.0, 5);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE, hmm::M6_STATE, 6.0, local.e_m[5][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE, hmm::M6_STATE, 2.0, local.e_m[5][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE, hmm::M6_STATE, 3.0, local.e_m[5][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE, hmm::M6_STATE, 4.0, local.e_m[5][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE, hmm::M6_STATE, 5.0, local.e_m[5][from2][to]);
             }
 
             #[rustfmt::skip] from_i_to_m(&mut alpha, &mut path, &seq, temp_i[4], global, t, hmm::I5_STATE, hmm::M6_STATE);
@@ -184,118 +184,83 @@ pub fn viterbi(
         #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i[5], global, t, from, to, hmm::M6_STATE, hmm::I6_STATE, global.tr.gg);
 
         // M' state
-        for i in hmm::M1_STATE_1..=hmm::M6_STATE_1 {
-            if (i == hmm::M1_STATE_1 || i == hmm::M4_STATE_1)
-                && t >= 3
-                && seq[t - 1] == A
-                && ((seq[t - 2] == T && seq[t - 3] == T)
-                    || (seq[t - 2] == T && seq[t - 3] == C)
-                    || (seq[t - 2] == C && seq[t - 3] == T))
-            {
-                // from Start state since this is actually a stop codon in minus strand
-                alpha[t][i] =
-                    alpha[t - 1][hmm::S_STATE_1] - local.e_m1[i - hmm::M1_STATE_1][from2][to];
-                path[t][i] = hmm::S_STATE_1;
-            } else {
-                if i == hmm::M1_STATE_1 {
-                    // from M state
-                    alpha[t][i] = alpha[t - 1][hmm::M6_STATE_1]
-                        - global.tr.gg
-                        - global.tr.mm
-                        - local.e_m1[0][from2][to];
-                    path[t][i] = hmm::M6_STATE_1;
-
-                    // from D state
-                    if !whole_genome {
-                        for j in (hmm::M1_STATE_1..=hmm::M5_STATE_1).rev() {
-                            let num_d = if j >= i {
-                                (i + hmm::PERIOD - j) as i32
-                            } else if j + 1 < i {
-                                (i - j) as i32
-                            } else {
-                                -10
-                            };
-                            if num_d > 0 {
-                                let temp_alpha = alpha[t - 1][j] - global.tr.md
-                                               - local.e_m1[0][from2][to] // TODO different from forward but merge?
-                                               - 0.25_f64.ln() * (num_d - 1) as f64
-                                               - global.tr.dd * (num_d - 2) as f64
-                                               - global.tr.dm;
-                                if temp_alpha < alpha[t][i] {
-                                    alpha[t][i] = temp_alpha;
-                                    path[t][i] = j;
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // from M state
-                    alpha[t][i] = alpha[t - 1][i - 1]
-                        - global.tr.mm
-                        - local.e_m1[i - hmm::M1_STATE_1][from2][to];
-                    path[t][i] = i - 1;
-
-                    // from D state
-                    if !whole_genome {
-                        for j in (hmm::M1_STATE_1..=hmm::M6_STATE_1).rev() {
-                            let num_d = if j >= i {
-                                (i + hmm::PERIOD - j) as i32
-                            } else if j + 1 < i {
-                                (i - j) as i32
-                            } else {
-                                -10
-                            };
-                            if num_d > 0 {
-                                let temp_alpha = alpha[t - 1][j]
-                                    - global.tr.md
-                                    - local.e_m1[i - hmm::M1_STATE_1][from2][to]
-                                    - 0.25_f64.ln() * (num_d - 1) as f64
-                                    - global.tr.dd * (num_d - 2) as f64
-                                    - global.tr.dm;
-                                if temp_alpha < alpha[t][i] {
-                                    alpha[t][i] = temp_alpha;
-                                    path[t][i] = j;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // from I state
-                let j = if i == hmm::M1_STATE_1 {
-                    hmm::I6_STATE_1
-                } else {
-                    hmm::I1_STATE_1 + i - hmm::M1_STATE_1 - 1
-                };
-
-                // to avoid stop codon
-                if t < 2 {
-                } else if (i == hmm::M2_STATE_1 || i == hmm::M5_STATE_1)
-                    && t + 1 < seq.len()
-                    && seq[t + 1] == A
-                    && ((seq[t] == T && seq[temp_i_1[j - hmm::I1_STATE_1]] == T)
-                        || (seq[t] == T && seq[temp_i_1[j - hmm::I1_STATE_1]] == C)
-                        || (seq[t] == A && seq[temp_i_1[j - hmm::I1_STATE_1]] == T))
-                {
-                } else if (i == hmm::M3_STATE_1 || i == hmm::M6_STATE_1)
-                    && seq[t] == A
-                    && temp_i_1[j - hmm::I1_STATE_1] > 1
-                    && ((seq[temp_i_1[j - hmm::I1_STATE_1]] == T
-                        && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == T)
-                        || (seq[temp_i_1[j - hmm::I1_STATE_1]] == T
-                            && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == C)
-                        || (seq[temp_i_1[j - hmm::I1_STATE_1]] == C
-                            && seq[temp_i_1[j - hmm::I1_STATE_1] - 1] == T))
-                {
-                } else {
-                    let temp_alpha = alpha[t - 1][j] - global.tr.im - 0.25_f64.ln();
-                    if temp_alpha < alpha[t][i] {
-                        alpha[t][i] = temp_alpha;
-                        path[t][i] = j;
-                    }
-                }
+        if t >= 3
+            && seq[t - 1] == A
+            && ((seq[t - 2] == T && seq[t - 3] == T)
+                || (seq[t - 2] == T && seq[t - 3] == C)
+                || (seq[t - 2] == C && seq[t - 3] == T))
+        {
+            #[rustfmt::skip] from_s_to_m1(&mut alpha, &mut path, t, hmm::M1_STATE_1, local.e_m1[0][from2][to]);
+        } else {
+            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE_1, hmm::M1_STATE_1, local.e_m1[0][from2][to], global.tr.gg);
+            if !whole_genome {
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE_1, hmm::M1_STATE_1, 2.0, local.e_m1[0][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE_1, hmm::M1_STATE_1, 3.0, local.e_m1[0][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE_1, hmm::M1_STATE_1, 4.0, local.e_m1[0][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE_1, hmm::M1_STATE_1, 5.0, local.e_m1[0][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE_1, hmm::M1_STATE_1, 6.0, local.e_m1[0][from2][to]);
             }
+            #[rustfmt::skip] from_i1_to_m1(&mut alpha, &mut path, &seq, temp_i_1[5], global, t, hmm::I6_STATE_1, hmm::M1_STATE_1);
         }
+
+        #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE_1, hmm::M2_STATE_1, local.e_m1[1][from2][to], 0.0);
+        if !whole_genome {
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE_1, hmm::M2_STATE_1, 2.0, local.e_m1[1][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE_1, hmm::M2_STATE_1, 3.0, local.e_m1[1][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE_1, hmm::M2_STATE_1, 4.0, local.e_m1[1][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE_1, hmm::M2_STATE_1, 5.0, local.e_m1[1][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE_1, hmm::M2_STATE_1, 6.0, local.e_m1[1][from2][to]);
+        }
+        #[rustfmt::skip] from_i1_to_m1(&mut alpha, &mut path, &seq, temp_i_1[0], global, t, hmm::I1_STATE_1, hmm::M2_STATE_1);
+
+        #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE_1, hmm::M3_STATE_1, local.e_m1[2][from2][to], 0.0);
+        if !whole_genome {
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE_1, hmm::M3_STATE_1, 3.0, local.e_m1[2][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE_1, hmm::M3_STATE_1, 4.0, local.e_m1[2][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE_1, hmm::M3_STATE_1, 5.0, local.e_m1[2][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE_1, hmm::M3_STATE_1, 6.0, local.e_m1[2][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE_1, hmm::M3_STATE_1, 2.0, local.e_m1[2][from2][to]);
+        }
+        #[rustfmt::skip] from_i1_to_m1(&mut alpha, &mut path, &seq, temp_i_1[1], global, t, hmm::I2_STATE_1, hmm::M3_STATE_1);
+
+        if t >= 3
+            && seq[t - 1] == A
+            && ((seq[t - 2] == T && seq[t - 3] == T)
+                || (seq[t - 2] == T && seq[t - 3] == C)
+                || (seq[t - 2] == C && seq[t - 3] == T))
+        {
+            #[rustfmt::skip] from_s_to_m1(&mut alpha, &mut path, t, hmm::M4_STATE_1, local.e_m1[3][from2][to]);
+        } else {
+            #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE_1, hmm::M4_STATE_1, local.e_m1[3][from2][to], 0.0);
+            if !whole_genome {
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE_1, hmm::M4_STATE_1, 4.0, local.e_m1[3][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE_1, hmm::M4_STATE_1, 5.0, local.e_m1[3][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE_1, hmm::M4_STATE_1, 6.0, local.e_m1[3][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE_1, hmm::M4_STATE_1, 2.0, local.e_m1[3][from2][to]);
+                #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE_1, hmm::M4_STATE_1, 3.0, local.e_m1[3][from2][to]);
+            }
+            #[rustfmt::skip] from_i1_to_m1(&mut alpha, &mut path, &seq, temp_i_1[2], global, t, hmm::I3_STATE_1, hmm::M4_STATE_1);
+        }
+
+        #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE_1, hmm::M5_STATE_1, local.e_m1[4][from2][to], 0.0);
+        if !whole_genome {
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE_1, hmm::M5_STATE_1, 5.0, local.e_m1[4][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE_1, hmm::M5_STATE_1, 6.0, local.e_m1[4][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE_1, hmm::M5_STATE_1, 2.0, local.e_m1[4][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE_1, hmm::M5_STATE_1, 3.0, local.e_m1[4][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE_1, hmm::M5_STATE_1, 4.0, local.e_m1[4][from2][to]);
+        }
+        #[rustfmt::skip] from_i1_to_m1(&mut alpha, &mut path, &seq, temp_i_1[3], global, t, hmm::I4_STATE_1, hmm::M5_STATE_1);
+
+        #[rustfmt::skip] from_m_to_m(&mut alpha, &mut path, global, t, hmm::M5_STATE_1, hmm::M6_STATE_1, local.e_m1[5][from2][to], 0.0);
+        if !whole_genome {
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M6_STATE_1, hmm::M6_STATE_1, 6.0, local.e_m1[5][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M4_STATE_1, hmm::M6_STATE_1, 2.0, local.e_m1[5][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M3_STATE_1, hmm::M6_STATE_1, 3.0, local.e_m1[5][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M2_STATE_1, hmm::M6_STATE_1, 4.0, local.e_m1[5][from2][to]);
+            #[rustfmt::skip] from_d_to_m(&mut alpha, &mut path, global, t, hmm::M1_STATE_1, hmm::M6_STATE_1, 5.0, local.e_m1[5][from2][to]);
+        }
+        #[rustfmt::skip] from_i1_to_m1(&mut alpha, &mut path, &seq, temp_i_1[4], global, t, hmm::I5_STATE_1, hmm::M6_STATE_1);
 
         // I' state
         from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::I1_STATE_1);
@@ -318,23 +283,9 @@ pub fn viterbi(
         }
 
         // non_coding state
-        // TODO just a minimum of three
-        alpha[t][hmm::R_STATE] = alpha[t - 1][hmm::R_STATE] - local.tr_rr[from][to] - global.tr.rr;
-        path[t][hmm::R_STATE] = hmm::R_STATE;
-
-        let temp_alpha = alpha[t - 1][hmm::E_STATE] - global.tr.er;
-        if temp_alpha < alpha[t][hmm::R_STATE] {
-            alpha[t][hmm::R_STATE] = temp_alpha;
-            path[t][hmm::R_STATE] = hmm::E_STATE;
-        }
-
-        let temp_alpha = alpha[t - 1][hmm::E_STATE_1] - global.tr.er;
-        if temp_alpha < alpha[t][hmm::R_STATE] {
-            alpha[t][hmm::R_STATE] = temp_alpha;
-            path[t][hmm::R_STATE] = hmm::E_STATE_1;
-        }
-
-        alpha[t][hmm::R_STATE] -= 0.95_f64.ln();
+        from_r_to_r(&mut alpha, &mut path, global, local, t, from, to);
+        from_e_to_r(&mut alpha, &mut path, global, t, hmm::E_STATE);
+        from_e_to_r(&mut alpha, &mut path, global, t, hmm::E_STATE_1);
 
         // end state
         if alpha[t][hmm::E_STATE] == 0.0 {
@@ -897,46 +848,43 @@ fn from_m_to_m(
     alpha: &mut Vec<[f64; 29]>,
     path: &mut Vec<[usize; 29]>,
     global: &hmm::Global,
-    local: &hmm::Local,
     t: usize,
-    from2: usize,
-    to: usize,
     from_m: usize,
     to_m: usize,
-    i: usize,
+    emission: f64,
     last_m: f64,
 ) {
-    alpha[t][to_m] = alpha[t - 1][from_m] - last_m - global.tr.mm - local.e_m[i][from2][to];
+    alpha[t][to_m] = alpha[t - 1][from_m] - last_m - global.tr.mm - emission;
     path[t][to_m] = from_m;
 }
 
+#[inline]
 fn from_d_to_m(
     alpha: &mut Vec<[f64; 29]>,
     path: &mut Vec<[usize; 29]>,
     global: &hmm::Global,
-    local: &hmm::Local,
     t: usize,
-    from2: usize,
-    to: usize,
     from_m: usize,
     to_m: usize,
     num_d: f64,
-    i: usize,
+    emission: f64,
 ) {
-    let temp_alpha = alpha[t - 1][from_m]
-        - global.tr.md
-        - local.e_m[i][from2][to]
-        - 0.25_f64.ln() * (num_d - 1.0)
-        - global.tr.dd * (num_d - 2.0)
-        - global.tr.dm;
-    if temp_alpha < alpha[t][to_m] {
-        alpha[t][to_m] = temp_alpha;
-        path[t][to_m] = from_m;
+    if num_d > 0.0 {
+        let temp_alpha = alpha[t - 1][from_m]
+            - global.tr.md
+            - emission
+            - 0.25_f64.ln() * (num_d - 1.0)
+            - global.tr.dd * (num_d - 2.0)
+            - global.tr.dm;
+        if temp_alpha < alpha[t][to_m] {
+            alpha[t][to_m] = temp_alpha;
+            path[t][to_m] = from_m;
+        }
     }
 }
 
 #[inline]
-fn from_s_to_m1(
+fn from_s_to_m(
     alpha: &mut Vec<[f64; 29]>,
     path: &mut Vec<[usize; 29]>,
     local: &hmm::Local,
@@ -951,6 +899,20 @@ fn from_s_to_m1(
     }
 }
 
+#[inline]
+fn from_s_to_m1(
+    alpha: &mut Vec<[f64; 29]>,
+    path: &mut Vec<[usize; 29]>,
+    t: usize,
+    to_m: usize,
+    emission: f64,
+) {
+    // from Start state since this is actually a stop codon in minus strand
+    alpha[t][to_m] = alpha[t - 1][hmm::S_STATE_1] - emission;
+    path[t][to_m] = hmm::S_STATE_1;
+}
+
+#[inline]
 fn from_i_to_m(
     alpha: &mut Vec<[f64; 29]>,
     path: &mut Vec<[usize; 29]>,
@@ -986,6 +948,7 @@ fn from_i_to_m(
     }
 }
 
+#[inline]
 fn from_i_to_i(
     alpha: &mut Vec<[f64; 29]>,
     path: &mut Vec<[usize; 29]>,
@@ -999,6 +962,7 @@ fn from_i_to_i(
     path[t][i] = i;
 }
 
+#[inline]
 fn from_m_to_i(
     alpha: &mut Vec<[f64; 29]>,
     path: &mut Vec<[usize; 29]>,
@@ -1016,5 +980,71 @@ fn from_m_to_i(
         alpha[t][to_i] = temp_alpha;
         path[t][to_i] = from_m;
         *temp_i = t - 1;
+    }
+}
+
+#[inline]
+fn from_i1_to_m1(
+    alpha: &mut Vec<[f64; 29]>,
+    path: &mut Vec<[usize; 29]>,
+    seq: &Vec<Nuc>,
+    temp_i_1: usize,
+    global: &hmm::Global,
+    t: usize,
+    from_i: usize,
+    to_m: usize,
+) {
+    // to avoid stop codon
+    if t < 2 {
+    } else if (to_m == hmm::M2_STATE_1 || to_m == hmm::M5_STATE_1)
+        && t + 1 < seq.len()
+        && seq[t + 1] == A
+        && ((seq[t] == T && seq[temp_i_1] == T)
+            || (seq[t] == T && seq[temp_i_1] == C)
+            || (seq[t] == A && seq[temp_i_1] == T))
+    {
+    } else if (to_m == hmm::M3_STATE_1 || to_m == hmm::M6_STATE_1)
+        && seq[t] == A
+        && temp_i_1 > 1
+        && ((seq[temp_i_1] == T && seq[temp_i_1 - 1] == T)
+            || (seq[temp_i_1] == T && seq[temp_i_1 - 1] == C)
+            || (seq[temp_i_1] == C && seq[temp_i_1 - 1] == T))
+    {
+    } else {
+        let temp_alpha = alpha[t - 1][from_i] - global.tr.im - 0.25_f64.ln();
+        if temp_alpha < alpha[t][to_m] {
+            alpha[t][to_m] = temp_alpha;
+            path[t][to_m] = from_i;
+        }
+    }
+}
+
+#[inline]
+fn from_r_to_r(
+    alpha: &mut Vec<[f64; 29]>,
+    path: &mut Vec<[usize; 29]>,
+    global: &hmm::Global,
+    local: &hmm::Local,
+    t: usize,
+    from: usize,
+    to: usize,
+) {
+    alpha[t][hmm::R_STATE] =
+        alpha[t - 1][hmm::R_STATE] - local.tr_rr[from][to] - global.tr.rr - 0.95_f64.ln();
+    path[t][hmm::R_STATE] = hmm::R_STATE;
+}
+
+#[inline]
+fn from_e_to_r(
+    alpha: &mut Vec<[f64; 29]>,
+    path: &mut Vec<[usize; 29]>,
+    global: &hmm::Global,
+    t: usize,
+    from_e: usize,
+) {
+    let temp_alpha = alpha[t - 1][from_e] - global.tr.er - 0.95_f64.ln();
+    if temp_alpha < alpha[t][hmm::R_STATE] {
+        alpha[t][hmm::R_STATE] = temp_alpha;
+        path[t][hmm::R_STATE] = from_e;
     }
 }
