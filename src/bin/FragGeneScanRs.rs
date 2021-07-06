@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 extern crate anyhow;
 use anyhow::Result;
@@ -14,6 +15,9 @@ use clap::{App, Arg};
 
 extern crate seq_io;
 use seq_io::fasta;
+
+extern crate rayon;
+use rayon::iter::{ParallelBridge, ParallelIterator};
 
 extern crate frag_gene_scan_rs;
 use frag_gene_scan_rs::dna::{count_cg_content, Nuc};
@@ -117,22 +121,20 @@ fn main() -> Result<()> {
         PathBuf::from(matches.value_of("train-file").unwrap()),
     )?;
 
-    let stdin = io::stdin();
-    let mut inputseqs: Box<dyn Read> = match matches.value_of("seq-file").unwrap_or("stdin") {
-        "stdin" => Box::new(stdin.lock()),
+    let inputseqs: Box<dyn Read + Send> = match matches.value_of("seq-file").unwrap_or("stdin") {
+        "stdin" => Box::new(io::stdin()),
         filename => Box::new(File::open(filename)?),
     };
 
-    let stdout = io::stdout();
-    let mut aastream: Option<Box<dyn Write>> =
+    let mut aastream: Option<Box<dyn Write + Send>> =
         match (matches.value_of("aa-file"), matches.value_of("output-file")) {
             (Some(filename), _) => Some(Box::new(File::create(filename)?)),
-            (None, Some("stdout")) => Some(Box::new(stdout.lock())),
+            (None, Some("stdout")) => Some(Box::new(io::stdout())),
             (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".faa")?)),
             (None, None) => None,
         };
 
-    let mut metastream: Option<File> = match (
+    let metastream: Option<File> = match (
         matches.value_of("meta-file"),
         matches.value_of("output-file"),
     ) {
@@ -142,7 +144,7 @@ fn main() -> Result<()> {
         (None, None) => None,
     };
 
-    let mut dnastream: Option<File> = match (
+    let dnastream: Option<File> = match (
         matches.value_of("dna-file"),
         matches.value_of("output-file"),
     ) {
@@ -153,16 +155,16 @@ fn main() -> Result<()> {
     };
 
     if aastream.is_none() && metastream.is_none() && dnastream.is_none() {
-        aastream = Some(Box::new(stdout.lock()));
+        aastream = Some(Box::new(io::stdout()));
     }
 
     run(
         global,
         locals,
-        &mut inputseqs,
-        &mut aastream,
-        &mut metastream,
-        &mut dnastream,
+        inputseqs,
+        aastream,
+        metastream,
+        dnastream,
         matches.is_present("complete"),
         matches.is_present("formatted"),
         usize::from_str_radix(matches.value_of("thread-num").unwrap_or("1"), 10)?,
@@ -171,39 +173,46 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run<R: Read, W: Write>(
+fn run<R: Read + Send, W: Write + Send>(
     global: Box<hmm::Global>,
     locals: Vec<hmm::Local>,
-    inputseqs: &mut R,
-    aastream: &mut Option<W>,
-    metastream: &mut Option<File>,
-    dnastream: &mut Option<File>,
+    inputseqs: R,
+    aastream: Option<W>,
+    metastream: Option<File>,
+    dnastream: Option<File>,
     whole_genome: bool,
     formatted: bool,
     _thread_num: usize,
 ) -> Result<()> {
-    for record in fasta::Reader::new(inputseqs).into_records() {
-        let fasta::OwnedRecord { mut head, seq } = record?;
-        head = head.into_iter().take_while(u8::is_ascii_graphic).collect();
-        let nseq: Vec<Nuc> = seq.into_iter().map(Nuc::from).collect();
-        let genes = viterbi(
-            &global,
-            &locals[count_cg_content(&nseq)],
-            head,
-            nseq,
-            whole_genome,
-        );
-        for gene in genes {
-            if let Some(metastream) = metastream {
-                gene.print_meta(metastream)?;
+    let aastream = aastream.map(Mutex::new);
+    let metastream = metastream.map(Mutex::new);
+    let dnastream = dnastream.map(Mutex::new);
+    fasta::Reader::new(inputseqs)
+        .into_records()
+        .par_bridge()
+        .map(|record| {
+            let fasta::OwnedRecord { mut head, seq } = record?;
+            head = head.into_iter().take_while(u8::is_ascii_graphic).collect();
+            let nseq: Vec<Nuc> = seq.into_iter().map(Nuc::from).collect();
+            let genes = viterbi(
+                &global,
+                &locals[count_cg_content(&nseq)],
+                head,
+                nseq,
+                whole_genome,
+            );
+            for gene in genes {
+                if let Some(metastream) = &metastream {
+                    gene.print_meta(&mut *metastream.lock().unwrap())?;
+                }
+                if let Some(dnastream) = &dnastream {
+                    gene.print_dna(&mut *dnastream.lock().unwrap(), formatted)?;
+                }
+                if let Some(aastream) = &aastream {
+                    gene.print_protein(whole_genome, &mut *aastream.lock().unwrap())?;
+                }
             }
-            if let Some(dnastream) = dnastream {
-                gene.print_dna(dnastream, formatted)?;
-            }
-            if let Some(aastream) = aastream {
-                gene.print_protein(whole_genome, aastream)?;
-            }
-        }
-    }
-    Ok(())
+            Ok(())
+        })
+        .collect()
 }
