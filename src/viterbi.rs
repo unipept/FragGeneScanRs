@@ -11,8 +11,8 @@ pub fn viterbi(
 ) -> gene::ReadPrediction {
     let gene_len = if whole_genome { 120 } else { 60 }; // minimum length to be output
 
-    let mut alpha: Vec<[f64; hmm::NUM_STATE]> = vec![];
-    let mut path: Vec<[usize; hmm::NUM_STATE]> = vec![];
+    let mut alpha: Vec<[f64; hmm::NUM_STATE]> = Vec::with_capacity(seq.len());
+    let mut path: Vec<[usize; hmm::NUM_STATE]> = Vec::with_capacity(seq.len());
     let mut temp_i: [usize; hmm::PERIOD] = [0; hmm::PERIOD];
     let mut temp_i_1: [usize; hmm::PERIOD] = [0; hmm::PERIOD];
 
@@ -594,7 +594,8 @@ pub fn viterbi(
 
 fn backtrack(alpha: &Vec<[f64; hmm::NUM_STATE]>, path: Vec<[usize; hmm::NUM_STATE]>) -> Vec<usize> {
     // backtrack array to find the optimal path
-    let mut vpath: Vec<usize> = vec![0];
+    let mut vpath: Vec<usize> = Vec::with_capacity(path.len());
+    vpath.push(0);
     let mut prob = f64::INFINITY;
     for (i, &prob_) in alpha.last().expect("empty seq").iter().enumerate() {
         if prob_ < prob {
@@ -626,7 +627,7 @@ fn output(
     let mut dna_start_t_withstop: usize = 0;
     let mut dna_start_t: usize = 0;
 
-    let mut dna: Vec<Nuc> = vec![];
+    let mut dna: Vec<Nuc> = Vec::with_capacity(seq.len());
     let mut insert = vec![];
     let mut delete = vec![];
 
