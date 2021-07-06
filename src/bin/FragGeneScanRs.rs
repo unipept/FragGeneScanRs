@@ -98,13 +98,6 @@ fn main() -> Result<()> {
             .value_name("dna_file")
             .takes_value(true)
             .help("Output predicted DNA reads to this file (supersedes -o)."))
-        // .arg(Arg::with_name("chunk-size")
-        //     .short("c")
-        //     .long("chunk-size")
-        //     .value_name("chunk_size")
-        //     .takes_value(true)
-        //     .default_value("1")
-        //     .help("Number of sequences in a chunk, scales speed and memory usage."))
         // .arg(Arg::with_name("translation-table")
         //     .short("x")
         //     .long("translation-table")
@@ -113,9 +106,6 @@ fn main() -> Result<()> {
         //     .default_value("11")
         //     .help("Which translation table to use."))
         .get_matches();
-
-    // thread_data_init in run_hmm.c
-    // writeOutputFiles in run_hmm.c
 
     let (global, locals) = hmm::get_train_from_file(
         PathBuf::from(matches.value_of("train-file-dir").unwrap_or("train")),

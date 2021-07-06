@@ -23,7 +23,7 @@ pub fn viterbi(
     alpha[0].copy_from_slice(&global.pi);
     for i in &mut alpha[0] {
         *i *= -1.0
-    } // TODO broadcast operation
+    }
 
     // If the sequence starts with a stop codon
     if seq[0] == T
@@ -484,7 +484,6 @@ pub fn viterbi(
                 let mut sub_sum = 0.0;
 
                 if t >= 30 {
-                    // TODO why 30?
                     for i in (t - 30)..=(t + 30) {
                         if i + 2 < seq.len() {
                             start_freq -= local.tr_s[i + 30 - t]
