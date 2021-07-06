@@ -18,6 +18,7 @@ use seq_io::fasta;
 
 extern crate rayon;
 use rayon::iter::{ParallelBridge, ParallelIterator};
+use rayon::ThreadPoolBuilder;
 
 extern crate frag_gene_scan_rs;
 use frag_gene_scan_rs::dna::{count_cg_content, Nuc};
@@ -167,7 +168,7 @@ fn main() -> Result<()> {
         dnastream,
         matches.is_present("complete"),
         matches.is_present("formatted"),
-        usize::from_str_radix(matches.value_of("thread-num").unwrap_or("1"), 10)?,
+        usize::from_str_radix(matches.value_of("thread-num").unwrap(), 10)?,
     )?;
 
     Ok(())
@@ -182,8 +183,12 @@ fn run<R: Read + Send, W: Write + Send>(
     dnastream: Option<File>,
     whole_genome: bool,
     formatted: bool,
-    _thread_num: usize,
+    thread_num: usize,
 ) -> Result<()> {
+    ThreadPoolBuilder::new()
+        .num_threads(thread_num)
+        .build_global()?;
+
     let aastream = aastream.map(Mutex::new);
     let metastream = metastream.map(Mutex::new);
     let dnastream = dnastream.map(Mutex::new);
