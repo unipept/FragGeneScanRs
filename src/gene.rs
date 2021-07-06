@@ -2,18 +2,55 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 
-extern crate seq_io;
-use seq_io::fasta;
-use seq_io::fasta::Record;
-
 extern crate thiserror;
 use thiserror::Error;
 
 use crate::dna::Nuc::{A, C, G, T};
 use crate::dna::{trinucleotide, Nuc, ANTI_CODON_CODE, CODON_CODE};
 
-pub struct Gene {
+pub struct ReadPrediction {
     pub head: Vec<u8>,
+    pub genes: Vec<Gene>,
+}
+
+impl ReadPrediction {
+    pub fn new(head: Vec<u8>) -> Self {
+        ReadPrediction {
+            head: head,
+            genes: vec![],
+        }
+    }
+
+    pub fn print_meta(&self, file: &mut File) -> Result<(), GeneError> {
+        if !self.genes.is_empty() {
+            file.write_all(&format!(">{}\n", std::str::from_utf8(&self.head)?).into_bytes())?;
+        }
+        for gene in &self.genes {
+            gene.print_meta(file)?;
+        }
+        Ok(())
+    }
+
+    pub fn print_dna(&self, file: &mut File, formatted: bool) -> Result<(), GeneError> {
+        for gene in &self.genes {
+            gene.print_dna(file, &self.head, formatted)?;
+        }
+        Ok(())
+    }
+
+    pub fn print_protein<W: Write>(
+        &self,
+        whole_genome: bool,
+        file: &mut W,
+    ) -> Result<(), GeneError> {
+        for gene in &self.genes {
+            gene.print_protein(file, &self.head, whole_genome)?;
+        }
+        Ok(())
+    }
+}
+
+pub struct Gene {
     pub start: usize,
     pub metastart: usize,
     pub end: usize,
@@ -27,10 +64,9 @@ pub struct Gene {
 
 impl Gene {
     pub fn print_meta(&self, file: &mut File) -> Result<(), GeneError> {
-        fasta::OwnedRecord {
-            head: self.head.to_owned(),
-            seq: format!(
-                "{}\t{}\t{}\t{}\t{}\tI:{}\tD:{}",
+        file.write_all(
+            &format!(
+                "{}\t{}\t{}\t{}\t{}\tI:{}\tD:{}\n",
                 self.metastart,
                 self.end,
                 if self.forward_strand { '+' } else { '-' },
@@ -46,12 +82,16 @@ impl Gene {
                     .collect::<String>()
             )
             .into_bytes(),
-        }
-        .write(file)?;
+        )?;
         Ok(())
     }
 
-    pub fn print_dna(&self, file: &mut File, formatted: bool) -> Result<(), GeneError> {
+    pub fn print_dna(
+        &self,
+        file: &mut File,
+        head: &Vec<u8>,
+        formatted: bool,
+    ) -> Result<(), GeneError> {
         let dna: Vec<u8> = match (self.forward_strand, formatted) {
             (true, true) => self.dna.iter().map(|&n| u8::from(n)).collect(),
             (true, false) => self
@@ -69,25 +109,27 @@ impl Gene {
                 .map(|&n| u8::from(n.rc()))
                 .collect(),
         };
-        fasta::OwnedRecord {
-            head: format!(
-                "{}_{}_{}_{}",
-                std::str::from_utf8(&self.head)?,
+
+        file.write_all(
+            &format!(
+                ">{}_{}_{}_{}\n{}\n",
+                std::str::from_utf8(head)?,
                 self.start,
                 self.end,
-                if self.forward_strand { '+' } else { '-' }
+                if self.forward_strand { '+' } else { '-' },
+                std::str::from_utf8(&dna)?,
             )
             .into_bytes(),
-            seq: dna,
-        }
-        .write(file)?;
+        )?;
+
         Ok(())
     }
 
     pub fn print_protein<W: Write>(
         &self,
-        whole_genome: bool,
         file: &mut W,
+        head: &Vec<u8>,
+        whole_genome: bool,
     ) -> Result<(), GeneError> {
         let dna = self
             .dna
@@ -137,19 +179,17 @@ impl Gene {
             }
         }
 
-        fasta::OwnedRecord {
-            head: format!(
-                "{}_{}_{}_{}",
-                std::str::from_utf8(&self.head)?,
+        file.write_all(
+            &format!(
+                ">{}_{}_{}_{}\n{}\n",
+                std::str::from_utf8(head)?,
                 self.start,
                 self.end,
-                if self.forward_strand { '+' } else { '-' }
+                if self.forward_strand { '+' } else { '-' },
+                std::str::from_utf8(&protein)?,
             )
             .into_bytes(),
-            seq: protein,
-        }
-        .write(file)?;
-
+        )?;
         Ok(())
     }
 }

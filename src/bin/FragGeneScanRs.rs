@@ -46,6 +46,9 @@ fn main() -> Result<()> {
         .arg(Arg::with_name("complete")
             .short("w")
             .long("complete")
+            .value_name("complete")
+            .takes_value(true)
+            .default_value("0")
             .help("The input sequence has complete genomic sequences; not short sequence reads."))
         .arg(Arg::with_name("formatted")
             .short("f")
@@ -156,7 +159,7 @@ fn main() -> Result<()> {
         aastream,
         metastream,
         dnastream,
-        matches.is_present("complete"),
+        matches.value_of("complete").unwrap() == "1",
         matches.is_present("formatted"),
         usize::from_str_radix(matches.value_of("thread-num").unwrap(), 10)?,
     )?;
@@ -189,23 +192,21 @@ fn run<R: Read + Send, W: Write + Send>(
             let fasta::OwnedRecord { mut head, seq } = record?;
             head = head.into_iter().take_while(u8::is_ascii_graphic).collect();
             let nseq: Vec<Nuc> = seq.into_iter().map(Nuc::from).collect();
-            let genes = viterbi(
+            let read_prediction = viterbi(
                 &global,
                 &locals[count_cg_content(&nseq)],
                 head,
                 nseq,
                 whole_genome,
             );
-            for gene in genes {
-                if let Some(metastream) = &metastream {
-                    gene.print_meta(&mut *metastream.lock().unwrap())?;
-                }
-                if let Some(dnastream) = &dnastream {
-                    gene.print_dna(&mut *dnastream.lock().unwrap(), formatted)?;
-                }
-                if let Some(aastream) = &aastream {
-                    gene.print_protein(whole_genome, &mut *aastream.lock().unwrap())?;
-                }
+            if let Some(metastream) = &metastream {
+                read_prediction.print_meta(&mut *metastream.lock().unwrap())?; // TODO lock together content
+            }
+            if let Some(dnastream) = &dnastream {
+                read_prediction.print_dna(&mut *dnastream.lock().unwrap(), formatted)?;
+            }
+            if let Some(aastream) = &aastream {
+                read_prediction.print_protein(whole_genome, &mut *aastream.lock().unwrap())?;
             }
             Ok(())
         })

@@ -8,7 +8,7 @@ pub fn viterbi(
     head: Vec<u8>,
     seq: Vec<Nuc>,
     whole_genome: bool,
-) -> Vec<gene::Gene> {
+) -> gene::ReadPrediction {
     let gene_len = if whole_genome { 120 } else { 60 }; // minimum length to be output
 
     let mut alpha: Vec<[f64; hmm::NUM_STATE]> = vec![];
@@ -619,8 +619,8 @@ fn output(
     vpath: Vec<usize>,
     gene_len: usize,
     alpha: Vec<[f64; hmm::NUM_STATE]>,
-) -> Vec<gene::Gene> {
-    let mut genes = vec![];
+) -> gene::ReadPrediction {
+    let mut read_prediction = gene::ReadPrediction::new(head);
     let mut codon_start = 0; // ternaire boolean?
     let mut start_t: isize = -1;
     let mut dna_start_t_withstop: usize = 0;
@@ -741,8 +741,7 @@ fn output(
                         }
                     }
 
-                    genes.push(gene::Gene {
-                        head: head.clone(),
+                    read_prediction.genes.push(gene::Gene {
                         start: dna_start_t,
                         metastart: dna_start_t,
                         end: end_t,
@@ -789,8 +788,7 @@ fn output(
                         end_t = end_old + s_save;
                     }
 
-                    genes.push(gene::Gene {
-                        head: head.clone(),
+                    read_prediction.genes.push(gene::Gene {
                         start: dna_start_t_withstop,
                         metastart: dna_start_t,
                         end: end_t,
@@ -839,7 +837,7 @@ fn output(
         }
     }
 
-    genes
+    read_prediction
 }
 
 #[inline]
