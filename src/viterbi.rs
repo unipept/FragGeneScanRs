@@ -1,3 +1,5 @@
+use strum::IntoEnumIterator;
+
 use crate::dna::Nuc::{A, C, G, T};
 use crate::dna::{trinucleotide, Nuc};
 use crate::{gene, hmm};
@@ -19,7 +21,10 @@ pub fn forward(
     local: &hmm::Local,
     seq: &Vec<Nuc>,
     whole_genome: bool,
-) -> (Vec<[f64; hmm::NUM_STATE]>, Vec<[hmm::State; hmm::NUM_STATE]>) {
+) -> (
+    Vec<[f64; hmm::NUM_STATE]>,
+    Vec<[hmm::State; hmm::NUM_STATE]>,
+) {
     let mut alpha: Vec<[f64; hmm::NUM_STATE]> = Vec::with_capacity(seq.len());
     let mut path: Vec<[hmm::State; hmm::NUM_STATE]> = Vec::with_capacity(seq.len());
     let mut temp_i: [usize; hmm::PERIOD] = [0; hmm::PERIOD];
@@ -588,7 +593,7 @@ pub fn forward(
         }
 
         if num_noncoding > 9 {
-            for i in hmm::states() {
+            for i in hmm::State::iter() {
                 if i != hmm::State::R {
                     alpha[t][i] = f64::INFINITY;
                     path[t][i] = hmm::State::R;
@@ -608,7 +613,7 @@ fn backtrack(
     let mut vpath: Vec<hmm::State> = Vec::with_capacity(path.len());
     vpath.push(hmm::State::S); // or null
     let mut prob = f64::INFINITY;
-    for (&prob_, i) in alpha.last().expect("empty seq").iter().zip(hmm::states()) {
+    for (&prob_, i) in alpha.last().expect("empty seq").iter().zip(hmm::State::iter()) {
         if prob_ < prob {
             vpath[0] = i;
             prob = prob_;

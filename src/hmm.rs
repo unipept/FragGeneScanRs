@@ -6,18 +6,14 @@ use std::str::FromStr;
 extern crate thiserror;
 use thiserror::Error;
 
+extern crate strum;
+use strum_macros::EnumIter;
+
 use crate::dna::{ACGT, BI_ACGT, CG_MAX, CG_MIN, TRI_ACGT};
 
 pub const NUM_STATE: usize = 29;
 
-// 19 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, EnumIter, EnumCount)]
-// 20 #[allow(non_camel_case_types)]
-// 21 pub enum State {
-// 22     S = 0,
-// 23     E = 1,
-// 24     R = 2,
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, EnumIter)]
 pub enum State {
     S = 0,
     E = 1,
@@ -51,120 +47,6 @@ pub enum State {
     N = 30,
 }
 
-const NUM_TRANSITIONS: usize = 14;
-
-impl State {
-    pub fn next(self) -> Self {
-        match self {
-            State::S => State::E,
-            State::E => State::R,
-            State::R => State::Sr,
-            State::Sr => State::Er,
-            State::Er => State::M1,
-            State::M1 => State::M2,
-            State::M2 => State::M3,
-            State::M3 => State::M4,
-            State::M4 => State::M5,
-            State::M5 => State::M6,
-            State::M6 => State::M1r,
-            State::M1r => State::M2r,
-            State::M2r => State::M3r,
-            State::M3r => State::M4r,
-            State::M4r => State::M5r,
-            State::M5r => State::M6r,
-            State::M6r => State::I1,
-            State::I1 => State::I2,
-            State::I2 => State::I3,
-            State::I3 => State::I4,
-            State::I4 => State::I5,
-            State::I5 => State::I6,
-            State::I6 => State::I1r,
-            State::I1r => State::I2r,
-            State::I2r => State::I3r,
-            State::I3r => State::I4r,
-            State::I4r => State::I5r,
-            State::I5r => State::I6r,
-            State::I6r => State::N,
-            State::N => State::S,
-        }
-    }
-
-    pub fn previous(self) -> Self {
-        match self {
-            State::S => State::N,
-            State::E => State::S,
-            State::R => State::E,
-            State::Sr => State::R,
-            State::Er => State::Sr,
-            State::M1 => State::Er,
-            State::M2 => State::M1,
-            State::M3 => State::M2,
-            State::M4 => State::M3,
-            State::M5 => State::M4,
-            State::M6 => State::M5,
-            State::M1r => State::M6,
-            State::M2r => State::M1r,
-            State::M3r => State::M2r,
-            State::M4r => State::M3r,
-            State::M5r => State::M4r,
-            State::M6r => State::M5r,
-            State::I1 => State::M6r,
-            State::I2 => State::I1,
-            State::I3 => State::I2,
-            State::I4 => State::I3,
-            State::I5 => State::I4,
-            State::I6 => State::I5,
-            State::I1r => State::I6,
-            State::I2r => State::I1r,
-            State::I3r => State::I2r,
-            State::I4r => State::I3r,
-            State::I5r => State::I4r,
-            State::I6r => State::I5r,
-            State::N => State::I6r,
-        }
-    }
-
-    pub fn up_through(self, other: State) -> StateIterator {
-        StateIterator {
-            start: self,
-            finish: other.next(),
-        }
-    }
-}
-
-pub struct StateIterator {
-    start: State,
-    finish: State,
-}
-
-impl Iterator for StateIterator {
-    type Item = State;
-
-    fn next(&mut self) -> Option<State> {
-        if self.start == self.finish {
-            None
-        } else {
-            self.start = self.start.next();
-            Some(self.start.previous())
-        }
-    }
-}
-
-impl DoubleEndedIterator for StateIterator {
-    fn next_back(&mut self) -> Option<State> {
-        if self.start == self.finish {
-            None
-        } else {
-            self.finish = self.finish.previous();
-            Some(self.finish)
-        }
-    }
-}
-
-pub fn states() -> StateIterator {
-    State::S.up_through(State::I6r)
-}
-
 impl<T> std::ops::Index<State> for [T] {
     type Output = T;
 
@@ -178,6 +60,8 @@ impl<T> std::ops::IndexMut<State> for [T] {
         &mut self[idx as usize]
     }
 }
+
+const NUM_TRANSITIONS: usize = 14;
 
 #[derive(Default)]
 pub struct Transition {
