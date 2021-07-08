@@ -66,7 +66,7 @@ impl Gene {
     pub fn print_meta(&self, file: &mut File) -> Result<(), GeneError> {
         file.write_all(
             &format!(
-                "{}\t{}\t{}\t{}\t{}\tI:{}\tD:{}\n",
+                "{}\t{}\t{}\t{}\t{:.6}\tI:{}\tD:{}\n",
                 self.metastart,
                 self.end,
                 if self.forward_strand { '+' } else { '-' },
