@@ -1,3 +1,4 @@
+use strum::EnumCount;
 use strum::IntoEnumIterator;
 
 use crate::dna::Nuc::{A, C, G, T};
@@ -22,17 +23,17 @@ pub fn forward(
     seq: &Vec<Nuc>,
     whole_genome: bool,
 ) -> (
-    Vec<[f64; hmm::NUM_STATE]>,
-    Vec<[hmm::State; hmm::NUM_STATE]>,
+    Vec<[f64; hmm::State::COUNT]>,
+    Vec<[Option<hmm::State>; hmm::State::COUNT]>,
 ) {
-    let mut alpha: Vec<[f64; hmm::NUM_STATE]> = Vec::with_capacity(seq.len());
-    let mut path: Vec<[hmm::State; hmm::NUM_STATE]> = Vec::with_capacity(seq.len());
+    let mut alpha: Vec<[f64; hmm::State::COUNT]> = Vec::with_capacity(seq.len());
+    let mut path: Vec<[Option<hmm::State>; hmm::State::COUNT]> = Vec::with_capacity(seq.len());
     let mut temp_i: [usize; hmm::PERIOD] = [0; hmm::PERIOD];
     let mut temp_i_1: [usize; hmm::PERIOD] = [0; hmm::PERIOD];
 
     for _ in 0..seq.len() {
-        alpha.push([0.0; hmm::NUM_STATE]);
-        path.push([hmm::State::N; hmm::NUM_STATE]);
+        alpha.push([0.0; hmm::State::COUNT]);
+        path.push([None; hmm::State::COUNT]);
     }
     alpha[0].copy_from_slice(&global.pi);
     for i in &mut alpha[0] {
@@ -47,8 +48,8 @@ pub fn forward(
     {
         alpha[0][hmm::State::E] = f64::INFINITY;
         alpha[1][hmm::State::E] = f64::INFINITY;
-        path[1][hmm::State::E] = hmm::State::E;
-        path[2][hmm::State::E] = hmm::State::E;
+        path[1][hmm::State::E] = Some(hmm::State::E);
+        path[2][hmm::State::E] = Some(hmm::State::E);
 
         alpha[2][hmm::State::M6] = f64::INFINITY;
         alpha[1][hmm::State::M5] = f64::INFINITY;
@@ -75,8 +76,8 @@ pub fn forward(
         alpha[0][hmm::State::Sr] = f64::INFINITY;
         alpha[1][hmm::State::Sr] = f64::INFINITY;
         alpha[2][hmm::State::Sr] = alpha[0][hmm::State::S];
-        path[1][hmm::State::Sr] = hmm::State::Sr;
-        path[2][hmm::State::Sr] = hmm::State::Sr;
+        path[1][hmm::State::Sr] = Some(hmm::State::Sr);
+        path[2][hmm::State::Sr] = Some(hmm::State::Sr);
 
         alpha[2][hmm::State::M3r] = f64::INFINITY;
         alpha[2][hmm::State::M6r] = f64::INFINITY;
@@ -284,9 +285,9 @@ pub fn forward(
         from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::State::I5r);
         from_i_to_i(&mut alpha, &mut path, global, t, from, to, hmm::State::I6r);
 
-        if (t >= 3 && path[t - 3][hmm::State::Sr] != hmm::State::R)
-            && (t >= 4 && path[t - 4][hmm::State::Sr] != hmm::State::R)
-            && (t >= 5 && path[t - 5][hmm::State::Sr] != hmm::State::R)
+        if (t >= 3 && path[t - 3][hmm::State::Sr] != Some(hmm::State::R))
+            && (t >= 4 && path[t - 4][hmm::State::Sr] != Some(hmm::State::R))
+            && (t >= 5 && path[t - 5][hmm::State::Sr] != Some(hmm::State::R))
         {
             #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i_1[0], global, t, from, to, hmm::State::M1r, hmm::State::I1r, 0.0);
             #[rustfmt::skip] from_m_to_i(&mut alpha, &mut path, &mut temp_i_1[1], global, t, from, to, hmm::State::M2r, hmm::State::I2r, 0.0);
@@ -304,7 +305,7 @@ pub fn forward(
         // end state
         if alpha[t][hmm::State::E] == 0.0 {
             alpha[t][hmm::State::E] = f64::INFINITY;
-            path[t][hmm::State::E] = hmm::State::N;
+            path[t][hmm::State::E] = None;
 
             if t < seq.len() - 2
                 && seq[t] == T
@@ -318,20 +319,20 @@ pub fn forward(
                 let temp_alpha = alpha[t - 1][hmm::State::M6] - global.tr.ge;
                 if temp_alpha < alpha[t + 2][hmm::State::E] {
                     alpha[t + 2][hmm::State::E] = temp_alpha;
-                    path[t][hmm::State::E] = hmm::State::M6;
+                    path[t][hmm::State::E] = Some(hmm::State::M6);
                 }
 
                 // transition from frame1, frame2 and frame3
                 let temp_alpha = alpha[t - 1][hmm::State::M3] - global.tr.ge;
                 if temp_alpha < alpha[t + 2][hmm::State::E] {
                     alpha[t + 2][hmm::State::E] = temp_alpha;
-                    path[t][hmm::State::E] = hmm::State::M3;
+                    path[t][hmm::State::E] = Some(hmm::State::M3);
                 }
 
                 alpha[t][hmm::State::E] = f64::INFINITY;
                 alpha[t + 1][hmm::State::E] = f64::INFINITY;
-                path[t + 1][hmm::State::E] = hmm::State::E;
-                path[t + 2][hmm::State::E] = hmm::State::E;
+                path[t + 1][hmm::State::E] = Some(hmm::State::E);
+                path[t + 2][hmm::State::E] = Some(hmm::State::E);
 
                 alpha[t + 2][hmm::State::M6] = f64::INFINITY;
                 alpha[t + 1][hmm::State::M5] = f64::INFINITY;
@@ -389,7 +390,7 @@ pub fn forward(
         // originally stop codon of genes in - strand
         if alpha[t][hmm::State::Sr] == 0.0 {
             alpha[t][hmm::State::Sr] = f64::INFINITY;
-            path[t][hmm::State::Sr] = hmm::State::N;
+            path[t][hmm::State::Sr] = None;
 
             if t < seq.len() - 2
                 && seq[t + 2] == A
@@ -400,20 +401,20 @@ pub fn forward(
                 alpha[t][hmm::State::Sr] = f64::INFINITY;
                 alpha[t + 1][hmm::State::Sr] = f64::INFINITY;
                 alpha[t + 2][hmm::State::Sr] = alpha[t - 1][hmm::State::R] - global.tr.rs;
-                path[t][hmm::State::Sr] = hmm::State::R;
-                path[t + 1][hmm::State::Sr] = hmm::State::Sr;
-                path[t + 2][hmm::State::Sr] = hmm::State::Sr;
+                path[t][hmm::State::Sr] = Some(hmm::State::R);
+                path[t + 1][hmm::State::Sr] = Some(hmm::State::Sr);
+                path[t + 2][hmm::State::Sr] = Some(hmm::State::Sr);
 
                 let temp_alpha = alpha[t - 1][hmm::State::Er] - global.tr.es;
                 if temp_alpha < alpha[t + 2][hmm::State::Sr] {
                     alpha[t + 2][hmm::State::Sr] = temp_alpha;
-                    path[t][hmm::State::Sr] = hmm::State::Er;
+                    path[t][hmm::State::Sr] = Some(hmm::State::Er);
                 }
 
                 let temp_alpha = alpha[t - 1][hmm::State::E] - global.tr.es1;
                 if temp_alpha < alpha[t + 2][hmm::State::Sr] {
                     alpha[t + 2][hmm::State::Sr] = temp_alpha;
-                    path[t][hmm::State::Sr] = hmm::State::E;
+                    path[t][hmm::State::Sr] = Some(hmm::State::E);
                 }
 
                 alpha[t + 2][hmm::State::M3r] = f64::INFINITY;
@@ -459,7 +460,7 @@ pub fn forward(
         // start state
         if alpha[t][hmm::State::S] == 0.0 {
             alpha[t][hmm::State::S] = f64::INFINITY;
-            path[t][hmm::State::S] = hmm::State::N;
+            path[t][hmm::State::S] = None;
 
             if t < seq.len() - 2
                 && (seq[t] == A || seq[t] == G || seq[t] == T)
@@ -469,20 +470,20 @@ pub fn forward(
                 alpha[t][hmm::State::S] = f64::INFINITY;
                 alpha[t + 1][hmm::State::S] = f64::INFINITY;
                 alpha[t + 2][hmm::State::S] = alpha[t - 1][hmm::State::R] - global.tr.rs;
-                path[t][hmm::State::S] = hmm::State::R;
-                path[t + 1][hmm::State::S] = hmm::State::S;
-                path[t + 2][hmm::State::S] = hmm::State::S;
+                path[t][hmm::State::S] = Some(hmm::State::R);
+                path[t + 1][hmm::State::S] = Some(hmm::State::S);
+                path[t + 2][hmm::State::S] = Some(hmm::State::S);
 
                 let temp_alpha = alpha[t - 1][hmm::State::E] - global.tr.es;
                 if temp_alpha < alpha[t + 2][hmm::State::S] {
                     alpha[t + 2][hmm::State::S] = temp_alpha;
-                    path[t][hmm::State::S] = hmm::State::E;
+                    path[t][hmm::State::S] = Some(hmm::State::E);
                 }
 
                 let temp_alpha = alpha[t - 1][hmm::State::Er] - global.tr.es1;
                 if temp_alpha < alpha[t + 2][hmm::State::S] {
                     alpha[t + 2][hmm::State::S] = temp_alpha;
-                    path[t][hmm::State::S] = hmm::State::Er;
+                    path[t][hmm::State::S] = Some(hmm::State::Er);
                 }
 
                 alpha[t + 2][hmm::State::S] -= if seq[t] == A {
@@ -533,7 +534,7 @@ pub fn forward(
         // originally start codon of genes in - strand
         if alpha[t][hmm::State::Er] == 0.0 {
             alpha[t][hmm::State::Er] = f64::INFINITY;
-            path[t][hmm::State::Er] = hmm::State::N;
+            path[t][hmm::State::Er] = None;
 
             if t < seq.len() - 2
                 && seq[t] == C
@@ -544,9 +545,9 @@ pub fn forward(
                 alpha[t][hmm::State::Er] = f64::INFINITY;
                 alpha[t + 1][hmm::State::Er] = f64::INFINITY;
                 alpha[t + 2][hmm::State::Er] = alpha[t - 1][hmm::State::M6r] - global.tr.ge;
-                path[t][hmm::State::Er] = hmm::State::M6r;
-                path[t + 1][hmm::State::Er] = hmm::State::Er;
-                path[t + 2][hmm::State::Er] = hmm::State::Er;
+                path[t][hmm::State::Er] = Some(hmm::State::M6r);
+                path[t + 1][hmm::State::Er] = Some(hmm::State::Er);
+                path[t + 2][hmm::State::Er] = Some(hmm::State::Er);
 
                 alpha[t + 2][hmm::State::Er] -= if seq[t + 2] == T {
                     0.83_f64.ln()
@@ -596,7 +597,7 @@ pub fn forward(
             for i in hmm::State::iter() {
                 if i != hmm::State::R {
                     alpha[t][i] = f64::INFINITY;
-                    path[t][i] = hmm::State::R;
+                    path[t][i] = Some(hmm::State::R);
                 }
             }
         }
@@ -606,14 +607,19 @@ pub fn forward(
 }
 
 fn backtrack(
-    alpha: &Vec<[f64; hmm::NUM_STATE]>,
-    path: Vec<[hmm::State; hmm::NUM_STATE]>,
+    alpha: &Vec<[f64; hmm::State::COUNT]>,
+    path: Vec<[Option<hmm::State>; hmm::State::COUNT]>,
 ) -> Vec<hmm::State> {
     // backtrack array to find the optimal path
     let mut vpath: Vec<hmm::State> = Vec::with_capacity(path.len());
     vpath.push(hmm::State::S); // or null
     let mut prob = f64::INFINITY;
-    for (&prob_, i) in alpha.last().expect("empty seq").iter().zip(hmm::State::iter()) {
+    for (&prob_, i) in alpha
+        .last()
+        .expect("empty seq")
+        .iter()
+        .zip(hmm::State::iter())
+    {
         if prob_ < prob {
             vpath[0] = i;
             prob = prob_;
@@ -622,7 +628,12 @@ fn backtrack(
 
     // backtrack the optimal path
     for t in (0..=path.len() - 2).rev() {
-        vpath.push(path[t + 1][*vpath.last().unwrap()]);
+        vpath.push(path[t + 1][*vpath.last().unwrap()].unwrap_or_else(|| {
+            eprintln!(
+                "Warning: encountered None-state in chosen path, replacing with non-coding state"
+            );
+            hmm::State::R
+        }));
     }
     vpath.reverse();
     vpath
@@ -634,7 +645,7 @@ fn build_genes(
     seq: Vec<Nuc>,
     whole_genome: bool,
     vpath: Vec<hmm::State>,
-    alpha: Vec<[f64; hmm::NUM_STATE]>,
+    alpha: Vec<[f64; hmm::State::COUNT]>,
 ) -> gene::ReadPrediction {
     let gene_len = if whole_genome { 120 } else { 60 }; // minimum length to be output
     let mut read_prediction = gene::ReadPrediction::new(head);
@@ -647,7 +658,7 @@ fn build_genes(
     let mut insert = vec![];
     let mut delete = vec![];
 
-    let mut prev_match = hmm::State::S; // or no state
+    let mut prev_match = hmm::State::S; // TODO or no state
 
     let mut start_orf = 0; // initialize?
 
@@ -863,7 +874,7 @@ fn build_genes(
 #[inline]
 fn from_m_to_m(
     alpha: &mut Vec<[f64; 29]>,
-    path: &mut Vec<[hmm::State; 29]>,
+    path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     global: &hmm::Global,
     t: usize,
     from_m: hmm::State,
@@ -872,13 +883,13 @@ fn from_m_to_m(
     last_m: f64,
 ) {
     alpha[t][to_m] = alpha[t - 1][from_m] - last_m - global.tr.mm - emission;
-    path[t][to_m] = from_m;
+    path[t][to_m] = Some(from_m);
 }
 
 #[inline]
 fn from_d_to_m(
     alpha: &mut Vec<[f64; 29]>,
-    path: &mut Vec<[hmm::State; 29]>,
+    path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     global: &hmm::Global,
     t: usize,
     from_m: hmm::State,
@@ -895,7 +906,7 @@ fn from_d_to_m(
             - global.tr.dm;
         if temp_alpha < alpha[t][to_m] {
             alpha[t][to_m] = temp_alpha;
-            path[t][to_m] = from_m;
+            path[t][to_m] = Some(from_m);
         }
     }
 }
@@ -903,7 +914,7 @@ fn from_d_to_m(
 #[inline]
 fn from_s_to_m(
     alpha: &mut Vec<[f64; 29]>,
-    path: &mut Vec<[hmm::State; 29]>,
+    path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     local: &hmm::Local,
     t: usize,
     from2: usize,
@@ -912,27 +923,27 @@ fn from_s_to_m(
     let temp_alpha = alpha[t - 1][hmm::State::S] - local.e_m[0][from2][to];
     if temp_alpha < alpha[t][hmm::State::M1] {
         alpha[t][hmm::State::M1] = temp_alpha;
-        path[t][hmm::State::M1] = hmm::State::S;
+        path[t][hmm::State::M1] = Some(hmm::State::S);
     }
 }
 
 #[inline]
 fn from_s_to_m1(
     alpha: &mut Vec<[f64; 29]>,
-    path: &mut Vec<[hmm::State; 29]>,
+    path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     t: usize,
     to_m: hmm::State,
     emission: f64,
 ) {
     // from Start state since this is actually a stop codon in minus strand
     alpha[t][to_m] = alpha[t - 1][hmm::State::Sr] - emission;
-    path[t][to_m] = hmm::State::Sr;
+    path[t][to_m] = Some(hmm::State::Sr);
 }
 
 #[inline]
 fn from_i_to_m(
     alpha: &mut Vec<[f64; 29]>,
-    path: &mut Vec<[hmm::State; 29]>,
+    path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     seq: &Vec<Nuc>,
     temp_i: usize,
     global: &hmm::Global,
@@ -960,7 +971,7 @@ fn from_i_to_m(
         let temp_alpha = alpha[t - 1][from_i] - global.tr.im - 0.25_f64.ln();
         if temp_alpha < alpha[t][to_m] {
             alpha[t][to_m] = temp_alpha;
-            path[t][to_m] = from_i;
+            path[t][to_m] = Some(from_i);
         }
     }
 }
@@ -968,7 +979,7 @@ fn from_i_to_m(
 #[inline]
 fn from_i_to_i(
     alpha: &mut Vec<[f64; 29]>,
-    path: &mut Vec<[hmm::State; 29]>,
+    path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     global: &hmm::Global,
     t: usize,
     from: usize,
@@ -976,13 +987,13 @@ fn from_i_to_i(
     i: hmm::State,
 ) {
     alpha[t][i] = alpha[t - 1][i] - global.tr.ii - global.tr_ii[from][to];
-    path[t][i] = i;
+    path[t][i] = Some(i);
 }
 
 #[inline]
 fn from_m_to_i(
     alpha: &mut Vec<[f64; 29]>,
-    path: &mut Vec<[hmm::State; 29]>,
+    path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     temp_i: &mut usize,
     global: &hmm::Global,
     t: usize,
@@ -995,7 +1006,7 @@ fn from_m_to_i(
     let temp_alpha = alpha[t - 1][from_m] - global.tr.mi - global.tr_mi[from][to] - last_i;
     if temp_alpha < alpha[t][to_i] {
         alpha[t][to_i] = temp_alpha;
-        path[t][to_i] = from_m;
+        path[t][to_i] = Some(from_m);
         *temp_i = t - 1;
     }
 }
@@ -1003,7 +1014,7 @@ fn from_m_to_i(
 #[inline]
 fn from_i1_to_m1(
     alpha: &mut Vec<[f64; 29]>,
-    path: &mut Vec<[hmm::State; 29]>,
+    path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     seq: &Vec<Nuc>,
     temp_i_1: usize,
     global: &hmm::Global,
@@ -1031,7 +1042,7 @@ fn from_i1_to_m1(
         let temp_alpha = alpha[t - 1][from_i] - global.tr.im - 0.25_f64.ln();
         if temp_alpha < alpha[t][to_m] {
             alpha[t][to_m] = temp_alpha;
-            path[t][to_m] = from_i;
+            path[t][to_m] = Some(from_i);
         }
     }
 }
@@ -1039,7 +1050,7 @@ fn from_i1_to_m1(
 #[inline]
 fn from_r_to_r(
     alpha: &mut Vec<[f64; 29]>,
-    path: &mut Vec<[hmm::State; 29]>,
+    path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     global: &hmm::Global,
     local: &hmm::Local,
     t: usize,
@@ -1048,13 +1059,13 @@ fn from_r_to_r(
 ) {
     alpha[t][hmm::State::R] =
         alpha[t - 1][hmm::State::R] - local.tr_rr[from][to] - global.tr.rr - 0.95_f64.ln();
-    path[t][hmm::State::R] = hmm::State::R;
+    path[t][hmm::State::R] = Some(hmm::State::R);
 }
 
 #[inline]
 fn from_e_to_r(
     alpha: &mut Vec<[f64; 29]>,
-    path: &mut Vec<[hmm::State; 29]>,
+    path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     global: &hmm::Global,
     t: usize,
     from_e: hmm::State,
@@ -1062,6 +1073,6 @@ fn from_e_to_r(
     let temp_alpha = alpha[t - 1][from_e] - global.tr.er - 0.95_f64.ln();
     if temp_alpha < alpha[t][hmm::State::R] {
         alpha[t][hmm::State::R] = temp_alpha;
-        path[t][hmm::State::R] = from_e;
+        path[t][hmm::State::R] = Some(from_e);
     }
 }

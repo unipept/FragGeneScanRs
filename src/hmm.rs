@@ -7,13 +7,12 @@ extern crate thiserror;
 use thiserror::Error;
 
 extern crate strum;
-use strum_macros::EnumIter;
+use strum::EnumCount;
+use strum_macros::{EnumCount, EnumIter};
 
 use crate::dna::{ACGT, BI_ACGT, CG_MAX, CG_MIN, TRI_ACGT};
 
-pub const NUM_STATE: usize = 29;
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, EnumIter)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, EnumCount, EnumIter)]
 pub enum State {
     S = 0,
     E = 1,
@@ -44,7 +43,6 @@ pub enum State {
     I4r = 26,
     I5r = 27,
     I6r = 28,
-    N = 30,
 }
 
 impl<T> std::ops::Index<State> for [T] {
@@ -86,7 +84,7 @@ const WINDOW: usize = 61;
 
 #[derive(Default)]
 pub struct Global {
-    pub pi: [f64; NUM_STATE],
+    pub pi: [f64; State::COUNT],
     pub tr: Transition,
     pub tr_ii: [[f64; ACGT]; ACGT],
     pub tr_mi: [[f64; ACGT]; ACGT],
@@ -239,7 +237,7 @@ fn read_transitions(global: &mut Global, filename: PathBuf) -> Result<(), Traini
     }
 
     header = next_line(&filename, &mut lines)?;
-    for i in 0..NUM_STATE {
+    for i in 0..State::COUNT {
         global.pi[i] =
             parse_float_col(&filename, &header, next_line(&filename, &mut lines)?, 1)?.ln();
     }
