@@ -9,8 +9,17 @@ pub fn viterbi(
     seq: Vec<Nuc>,
     whole_genome: bool,
 ) -> gene::ReadPrediction {
-    let gene_len = if whole_genome { 120 } else { 60 }; // minimum length to be output
+    let (alpha, path) = forward(global, local, &seq, whole_genome);
+    let vpath = backtrack(&alpha, path);
+    build_genes(&local, head, seq, whole_genome, vpath, alpha)
+}
 
+pub fn forward(
+    global: &hmm::Global,
+    local: &hmm::Local,
+    seq: &Vec<Nuc>,
+    whole_genome: bool,
+) -> (Vec<[f64; hmm::NUM_STATE]>, Vec<[usize; hmm::NUM_STATE]>) {
     let mut alpha: Vec<[f64; hmm::NUM_STATE]> = Vec::with_capacity(seq.len());
     let mut path: Vec<[usize; hmm::NUM_STATE]> = Vec::with_capacity(seq.len());
     let mut temp_i: [usize; hmm::PERIOD] = [0; hmm::PERIOD];
@@ -588,8 +597,7 @@ pub fn viterbi(
         }
     }
 
-    let vpath = backtrack(&alpha, path);
-    output(&local, head, seq, whole_genome, vpath, gene_len, alpha)
+    (alpha, path)
 }
 
 fn backtrack(alpha: &Vec<[f64; hmm::NUM_STATE]>, path: Vec<[usize; hmm::NUM_STATE]>) -> Vec<usize> {
@@ -612,15 +620,15 @@ fn backtrack(alpha: &Vec<[f64; hmm::NUM_STATE]>, path: Vec<[usize; hmm::NUM_STAT
     vpath
 }
 
-fn output(
+fn build_genes(
     local: &hmm::Local,
     head: Vec<u8>,
     seq: Vec<Nuc>,
     whole_genome: bool,
     vpath: Vec<usize>,
-    gene_len: usize,
     alpha: Vec<[f64; hmm::NUM_STATE]>,
 ) -> gene::ReadPrediction {
+    let gene_len = if whole_genome { 120 } else { 60 }; // minimum length to be output
     let mut read_prediction = gene::ReadPrediction::new(head);
     let mut codon_start = 0; // ternaire boolean?
     let mut start_t: isize = -1;
