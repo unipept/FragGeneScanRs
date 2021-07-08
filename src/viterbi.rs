@@ -351,38 +351,14 @@ pub fn forward(
 
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
-                let mut sub_sum = 0.0;
-
-                if t >= 60 {
-                    // bug reported by Yu-Wei ------ TODO 60 is the incomplete minimum length? can be merged?
-                    for i in (t - 60)..=(t - 3) {
-                        if i + 2 < seq.len() {
-                            start_freq -= local.tr_e[i + 60 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
-                        }
-                    }
-                } else if t > 3 {
-                    for i in 0..=(t - 3) {
-                        if i + 2 < seq.len() {
-                            sub_sum += local.tr_e[i + 60 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
-                        }
-                    }
-                    sub_sum = sub_sum * 58.0 / (t - 3 + 1) as f64;
-                    start_freq -= sub_sum;
+                for i in (t.max(60) - 60)..=(t.max(3) - 3) {
+                    start_freq -= local.tr_e[i + 60 - t]
+                        [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
                 }
-
-                let h_kd = local.dist_e[2]
-                    * (-1.0 * (start_freq - local.dist_e[1]).powi(2)
-                        / (local.dist_e[0]).powi(2)
-                        / 2.0)
-                        .exp();
-                let r_kd = local.dist_e[5]
-                    * (-1.0 * (start_freq - local.dist_e[4]).powi(2)
-                        / (local.dist_e[3]).powi(2)
-                        / 2.0)
-                        .exp();
-                alpha[t + 2][hmm::State::E] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
+                if t < 60 {
+                    start_freq *= 58.0 / (t - 3 + 1) as f64
+                }
+                modify_border_dist(&mut alpha[t + 2][hmm::State::E], &local.dist_e, start_freq);
             }
         }
 
@@ -430,30 +406,22 @@ pub fn forward(
 
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
-
-                // TODO needs same 60-edgecase as above?
-                for i in 3..=60 {
-                    if t + i + 2 < seq.len() {
-                        start_freq += local.tr_s1[i - 3][trinucleotide(
-                            seq[t + i],
-                            seq[t + i + 1],
-                            seq[t + i + 2],
-                        )
-                        .unwrap_or(0)];
+                if t + 5 < seq.len() {
+                    for i in (t + 3)..=(t + 60).min(seq.len() - 3) {
+                        start_freq -= local.tr_s1[i - 3 - t]
+                            [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
                     }
                 }
+                // TODO add similar limit to other 3 ends? proposal:
+                //if t + 63 > seq.len() {
+                //    start_freq *= 58.0 / (seq.len() - t - 5) as f64
+                //}
 
-                let h_kd = local.dist_s1[2]
-                    * (-1.0 * (start_freq - local.dist_s1[1]).powi(2)
-                        / (local.dist_s1[0]).powi(2)
-                        / 2.0)
-                        .exp();
-                let r_kd = local.dist_s1[5]
-                    * (-1.0 * (start_freq - local.dist_s1[4]).powi(2)
-                        / (local.dist_s1[3]).powi(2)
-                        / 2.0)
-                        .exp();
-                alpha[t + 2][hmm::State::Sr] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
+                modify_border_dist(
+                    &mut alpha[t + 2][hmm::State::Sr],
+                    &local.dist_s1,
+                    start_freq,
+                );
             }
         }
 
@@ -496,37 +464,14 @@ pub fn forward(
 
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
-                let mut sub_sum = 0.0;
-
-                if t >= 30 {
-                    for i in (t - 30)..=(t + 30) {
-                        if i + 2 < seq.len() {
-                            start_freq -= local.tr_s[i + 30 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
-                        }
-                    }
-                } else {
-                    for i in 0..=(t + 30) {
-                        if i + 2 < seq.len() {
-                            sub_sum += local.tr_s[i + 30 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
-                        }
-                    }
-                    sub_sum *= 61.0 / (t + 30 + 1) as f64;
-                    start_freq -= sub_sum;
+                for i in (t.max(30) - 30)..=(t + 30).min(seq.len() - 3) {
+                    start_freq -= local.tr_s[i + 30 - t]
+                        [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
                 }
-
-                let h_kd = local.dist_s[2]
-                    * (-1.0 * (start_freq - local.dist_s[1]).powi(2)
-                        / (local.dist_s[0]).powi(2)
-                        / 2.0)
-                        .exp();
-                let r_kd = local.dist_s[5]
-                    * (-1.0 * (start_freq - local.dist_s[4]).powi(2)
-                        / (local.dist_s[3]).powi(2)
-                        / 2.0)
-                        .exp();
-                alpha[t + 2][hmm::State::S] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
+                if t < 30 {
+                    start_freq *= 61.0 / (t + 30 + 1) as f64;
+                }
+                modify_border_dist(&mut alpha[t + 2][hmm::State::S], &local.dist_s, start_freq);
             }
         }
 
@@ -559,37 +504,19 @@ pub fn forward(
 
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
-                let mut sub_sum = 0.0;
-
-                if t >= 30 {
-                    for i in (t - 30)..=(t + 30) {
-                        if i + 2 < seq.len() {
-                            start_freq -= local.tr_e1[i + 30 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
-                        }
-                    }
-                } else {
-                    for i in 0..=(t + 30) {
-                        if i + 2 < seq.len() {
-                            sub_sum += local.tr_e1[i + 30 - t]
-                                [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
-                        }
-                    }
-                    sub_sum *= 61.0 / (t + 30 + 1) as f64;
-                    start_freq -= sub_sum;
+                for i in (t.max(30) - 30)..=(t + 30).min(seq.len() - 3) {
+                    start_freq -= local.tr_e1[i + 30 - t]
+                        [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
+                }
+                if t < 30 {
+                    start_freq *= 61.0 / (t + 30 + 1) as f64;
                 }
 
-                let h_kd = local.dist_e1[2]
-                    * (-1.0 * (start_freq - local.dist_e1[1]).powi(2)
-                        / (local.dist_e1[0]).powi(2)
-                        / 2.0)
-                        .exp();
-                let r_kd = local.dist_e1[5]
-                    * (-1.0 * (start_freq - local.dist_e1[4]).powi(2)
-                        / (local.dist_e1[3]).powi(2)
-                        / 2.0)
-                        .exp();
-                alpha[t + 2][hmm::State::Er] -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
+                modify_border_dist(
+                    &mut alpha[t + 2][hmm::State::Er],
+                    &local.dist_e1,
+                    start_freq,
+                );
             }
         }
 
@@ -1075,4 +1002,12 @@ fn from_e_to_r(
         alpha[t][hmm::State::R] = temp_alpha;
         path[t][hmm::State::R] = Some(from_e);
     }
+}
+
+fn modify_border_dist(cell: &mut f64, values: &[f64], start_freq: f64) {
+    let h_kd =
+        values[2] * (-1.0 * (start_freq - values[1]).powi(2) / (values[0]).powi(2) / 2.0).exp();
+    let r_kd =
+        values[5] * (-1.0 * (start_freq - values[4]).powi(2) / (values[3]).powi(2) / 2.0).exp();
+    *cell -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
 }
