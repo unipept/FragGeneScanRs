@@ -873,7 +873,7 @@ fn build_genes(
 
 #[inline]
 fn from_m_to_m(
-    alpha: &mut Vec<[f64; 29]>,
+    alpha: &mut Vec<[f64; hmm::State::COUNT]>,
     path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     global: &hmm::Global,
     t: usize,
@@ -888,7 +888,7 @@ fn from_m_to_m(
 
 #[inline]
 fn from_d_to_m(
-    alpha: &mut Vec<[f64; 29]>,
+    alpha: &mut Vec<[f64; hmm::State::COUNT]>,
     path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     global: &hmm::Global,
     t: usize,
@@ -913,7 +913,7 @@ fn from_d_to_m(
 
 #[inline]
 fn from_s_to_m(
-    alpha: &mut Vec<[f64; 29]>,
+    alpha: &mut Vec<[f64; hmm::State::COUNT]>,
     path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     local: &hmm::Local,
     t: usize,
@@ -929,7 +929,7 @@ fn from_s_to_m(
 
 #[inline]
 fn from_s_to_m1(
-    alpha: &mut Vec<[f64; 29]>,
+    alpha: &mut Vec<[f64; hmm::State::COUNT]>,
     path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     t: usize,
     to_m: hmm::State,
@@ -942,7 +942,7 @@ fn from_s_to_m1(
 
 #[inline]
 fn from_i_to_m(
-    alpha: &mut Vec<[f64; 29]>,
+    alpha: &mut Vec<[f64; hmm::State::COUNT]>,
     path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     seq: &Vec<Nuc>,
     temp_i: usize,
@@ -978,7 +978,7 @@ fn from_i_to_m(
 
 #[inline]
 fn from_i_to_i(
-    alpha: &mut Vec<[f64; 29]>,
+    alpha: &mut Vec<[f64; hmm::State::COUNT]>,
     path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     global: &hmm::Global,
     t: usize,
@@ -992,7 +992,7 @@ fn from_i_to_i(
 
 #[inline]
 fn from_m_to_i(
-    alpha: &mut Vec<[f64; 29]>,
+    alpha: &mut Vec<[f64; hmm::State::COUNT]>,
     path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     temp_i: &mut usize,
     global: &hmm::Global,
@@ -1013,7 +1013,7 @@ fn from_m_to_i(
 
 #[inline]
 fn from_i1_to_m1(
-    alpha: &mut Vec<[f64; 29]>,
+    alpha: &mut Vec<[f64; hmm::State::COUNT]>,
     path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     seq: &Vec<Nuc>,
     temp_i_1: usize,
@@ -1049,7 +1049,7 @@ fn from_i1_to_m1(
 
 #[inline]
 fn from_r_to_r(
-    alpha: &mut Vec<[f64; 29]>,
+    alpha: &mut Vec<[f64; hmm::State::COUNT]>,
     path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     global: &hmm::Global,
     local: &hmm::Local,
@@ -1064,7 +1064,7 @@ fn from_r_to_r(
 
 #[inline]
 fn from_e_to_r(
-    alpha: &mut Vec<[f64; 29]>,
+    alpha: &mut Vec<[f64; hmm::State::COUNT]>,
     path: &mut Vec<[Option<hmm::State>; hmm::State::COUNT]>,
     global: &hmm::Global,
     t: usize,
