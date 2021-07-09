@@ -352,8 +352,8 @@ pub fn forward(
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
                 for i in (t.max(60) - 60)..=(t.max(3) - 3) {
-                    start_freq -= local.tr_e[i + 60 - t]
-                        [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
+                    start_freq -=
+                        local.tr_e[i + 60 - t][trinucleotide(seq.get(i..).unwrap()).unwrap_or(0)];
                 }
                 if t < 60 {
                     start_freq *= 58.0 / (t - 3 + 1) as f64
@@ -409,7 +409,7 @@ pub fn forward(
                 if t + 5 < seq.len() {
                     for i in (t + 3)..=(t + 60).min(seq.len() - 3) {
                         start_freq -= local.tr_s1[i - 3 - t]
-                            [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
+                            [trinucleotide(seq.get(i..).unwrap()).unwrap_or(0)];
                     }
                 }
                 // TODO add similar limit to other 3 ends? proposal:
@@ -465,8 +465,8 @@ pub fn forward(
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
                 for i in (t.max(30) - 30)..=(t + 30).min(seq.len() - 3) {
-                    start_freq -= local.tr_s[i + 30 - t]
-                        [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
+                    start_freq -=
+                        local.tr_s[i + 30 - t][trinucleotide(seq.get(i..).unwrap()).unwrap_or(0)];
                 }
                 if t < 30 {
                     start_freq *= 61.0 / (t + 30 + 1) as f64;
@@ -505,8 +505,8 @@ pub fn forward(
                 // adjustment based on probability distribution
                 let mut start_freq = 0.0;
                 for i in (t.max(30) - 30)..=(t + 30).min(seq.len() - 3) {
-                    start_freq -= local.tr_e1[i + 30 - t]
-                        [trinucleotide(seq[i], seq[i + 1], seq[i + 2]).unwrap_or(0)];
+                    start_freq -=
+                        local.tr_e1[i + 30 - t][trinucleotide(seq.get(i..).unwrap()).unwrap_or(0)];
                 }
                 if t < 30 {
                     start_freq *= 61.0 / (t + 30 + 1) as f64;
@@ -674,12 +674,8 @@ fn build_genes(
                                 let utr = &seq[start_old - 1 - s - 30..start_old - 1 - s - 30 + 63];
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
-                                    freq_sum -= local.tr_s[j][trinucleotide(
-                                        utr[j],
-                                        utr[j + 1],
-                                        utr[j + 2],
-                                    )
-                                    .unwrap_or(0)];
+                                    freq_sum -= local.tr_s[j]
+                                        [trinucleotide(utr.get(j..).unwrap()).unwrap_or(0)];
                                 }
                                 if s == 0 {
                                     e_save = freq_sum;
@@ -724,12 +720,9 @@ fn build_genes(
                                 let utr = &seq[end_old - 1 - 2 + s - 30..end_old + s + 30];
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
-                                    freq_sum -= local.tr_e1[j][trinucleotide(
-                                        utr[j],
-                                        utr[j + 1],
-                                        utr[j + 2],
-                                    )
-                                    .unwrap_or(0)]; // TODO stop1? (their note)
+                                    // TODO stop1? (their note)
+                                    freq_sum -= local.tr_e1[j]
+                                        [trinucleotide(utr.get(j..).unwrap()).unwrap_or(0)];
                                 }
                                 if s == 0 || freq_sum < e_save {
                                     e_save = freq_sum;

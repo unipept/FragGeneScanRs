@@ -114,9 +114,9 @@ pub const ANTI_CODON_CODE: [u8; TRI_ACGT] = [
     b'L', b'V', b'L', b'I', b'*', b'G', b'R', b'R', b'S', b'A', b'P', b'T', b'*', b'E', b'Q', b'K',
 ];
 
-pub fn trinucleotide(a: Nuc, b: Nuc, c: Nuc) -> Option<usize> {
-    if let (Some(a_), Some(b_), Some(c_)) = (a.to_int(), b.to_int(), c.to_int()) {
-        Some(16 * a_ + 4 * b_ + c_)
+pub fn trinucleotide(n: &[Nuc]) -> Option<usize> {
+    if let (Some(a), Some(b), Some(c)) = (n[0].to_int(), n[1].to_int(), n[2].to_int()) {
+        Some(16 * a + 4 * b + c)
     } else {
         None
     }

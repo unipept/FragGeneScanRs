@@ -139,19 +139,11 @@ impl Gene {
             .collect::<Vec<Nuc>>();
         let mut protein: Vec<u8> = if self.forward_strand {
             dna.chunks_exact(3)
-                .map(|c| {
-                    trinucleotide(c[0], c[1], c[2])
-                        .map(|i| CODON_CODE[i])
-                        .unwrap_or(b'X')
-                })
+                .map(|c| trinucleotide(c).map(|i| CODON_CODE[i]).unwrap_or(b'X'))
                 .collect()
         } else {
             dna.rchunks_exact(3)
-                .map(|c| {
-                    trinucleotide(c[0], c[1], c[2])
-                        .map(|i| ANTI_CODON_CODE[i])
-                        .unwrap_or(b'X')
-                })
+                .map(|c| trinucleotide(c).map(|i| ANTI_CODON_CODE[i]).unwrap_or(b'X'))
                 .collect()
         };
         if protein.last() == Some(&b'*') {
@@ -163,17 +155,13 @@ impl Gene {
         // only consider two major alternative ones, GTG and TTG
         if whole_genome {
             if self.forward_strand {
-                let s = trinucleotide(self.dna[0], self.dna[1], self.dna[2]);
-                if s == trinucleotide(G, T, G) || s == trinucleotide(T, T, G) {
+                let s = trinucleotide(&self.dna);
+                if s == trinucleotide(&[G, T, G]) || s == trinucleotide(&[T, T, G]) {
                     protein[0] = b'M';
                 }
             } else {
-                let s = trinucleotide(
-                    self.dna[self.dna.len() - 3],
-                    self.dna[self.dna.len() - 2],
-                    self.dna[self.dna.len() - 1],
-                );
-                if s == trinucleotide(C, A, C) || s == trinucleotide(C, A, A) {
+                let s = trinucleotide(self.dna.get(self.dna.len() - 3..).unwrap());
+                if s == trinucleotide(&[C, A, C]) || s == trinucleotide(&[C, A, A]) {
                     protein[0] = b'M';
                 }
             }
