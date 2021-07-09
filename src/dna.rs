@@ -34,6 +34,17 @@ impl Nuc {
         }
     }
 
+    pub fn to_upper(&self) -> Nuc {
+        match self {
+            Nuc::A | Nuc::Ai => Nuc::A,
+            Nuc::C | Nuc::Ci => Nuc::C,
+            Nuc::G | Nuc::Gi => Nuc::G,
+            Nuc::T | Nuc::Ti => Nuc::T,
+            Nuc::N | Nuc::Ni => Nuc::N,
+            Nuc::Xi => Nuc::N,
+        }
+    }
+
     pub fn to_lower(&self) -> Nuc {
         match self {
             Nuc::A | Nuc::Ai => Nuc::Ai,
@@ -115,10 +126,72 @@ pub const ANTI_CODON_CODE: [u8; TRI_ACGT] = [
 ];
 
 pub fn trinucleotide(n: &[Nuc]) -> Option<usize> {
-    if let (Some(a), Some(b), Some(c)) = (n[0].to_int(), n[1].to_int(), n[2].to_int()) {
-        Some(16 * a + 4 * b + c)
-    } else {
-        None
+    match [n[0].to_upper(), n[1].to_upper(), n[2].to_upper()] {
+        [Nuc::A, Nuc::A, Nuc::A] => Some(0),
+        [Nuc::A, Nuc::A, Nuc::C] => Some(1),
+        [Nuc::A, Nuc::A, Nuc::G] => Some(2),
+        [Nuc::A, Nuc::A, Nuc::T] => Some(3),
+        [Nuc::A, Nuc::C, Nuc::A] => Some(4),
+        [Nuc::A, Nuc::C, Nuc::C] => Some(5),
+        [Nuc::A, Nuc::C, Nuc::G] => Some(6),
+        [Nuc::A, Nuc::C, Nuc::T] => Some(7),
+        [Nuc::A, Nuc::G, Nuc::A] => Some(8),
+        [Nuc::A, Nuc::G, Nuc::C] => Some(9),
+        [Nuc::A, Nuc::G, Nuc::G] => Some(10),
+        [Nuc::A, Nuc::G, Nuc::T] => Some(11),
+        [Nuc::A, Nuc::T, Nuc::A] => Some(12),
+        [Nuc::A, Nuc::T, Nuc::C] => Some(13),
+        [Nuc::A, Nuc::T, Nuc::G] => Some(14),
+        [Nuc::A, Nuc::T, Nuc::T] => Some(15),
+        [Nuc::C, Nuc::A, Nuc::A] => Some(16),
+        [Nuc::C, Nuc::A, Nuc::C] => Some(17),
+        [Nuc::C, Nuc::A, Nuc::G] => Some(18),
+        [Nuc::C, Nuc::A, Nuc::T] => Some(19),
+        [Nuc::C, Nuc::C, Nuc::A] => Some(20),
+        [Nuc::C, Nuc::C, Nuc::C] => Some(21),
+        [Nuc::C, Nuc::C, Nuc::G] => Some(22),
+        [Nuc::C, Nuc::C, Nuc::T] => Some(23),
+        [Nuc::C, Nuc::G, Nuc::A] => Some(24),
+        [Nuc::C, Nuc::G, Nuc::C] => Some(25),
+        [Nuc::C, Nuc::G, Nuc::G] => Some(26),
+        [Nuc::C, Nuc::G, Nuc::T] => Some(27),
+        [Nuc::C, Nuc::T, Nuc::A] => Some(28),
+        [Nuc::C, Nuc::T, Nuc::C] => Some(29),
+        [Nuc::C, Nuc::T, Nuc::G] => Some(30),
+        [Nuc::C, Nuc::T, Nuc::T] => Some(31),
+        [Nuc::G, Nuc::A, Nuc::A] => Some(32),
+        [Nuc::G, Nuc::A, Nuc::C] => Some(33),
+        [Nuc::G, Nuc::A, Nuc::G] => Some(34),
+        [Nuc::G, Nuc::A, Nuc::T] => Some(35),
+        [Nuc::G, Nuc::C, Nuc::A] => Some(36),
+        [Nuc::G, Nuc::C, Nuc::C] => Some(37),
+        [Nuc::G, Nuc::C, Nuc::G] => Some(38),
+        [Nuc::G, Nuc::C, Nuc::T] => Some(39),
+        [Nuc::G, Nuc::G, Nuc::A] => Some(40),
+        [Nuc::G, Nuc::G, Nuc::C] => Some(41),
+        [Nuc::G, Nuc::G, Nuc::G] => Some(42),
+        [Nuc::G, Nuc::G, Nuc::T] => Some(43),
+        [Nuc::G, Nuc::T, Nuc::A] => Some(44),
+        [Nuc::G, Nuc::T, Nuc::C] => Some(45),
+        [Nuc::G, Nuc::T, Nuc::G] => Some(46),
+        [Nuc::G, Nuc::T, Nuc::T] => Some(47),
+        [Nuc::T, Nuc::A, Nuc::A] => Some(48),
+        [Nuc::T, Nuc::A, Nuc::C] => Some(49),
+        [Nuc::T, Nuc::A, Nuc::G] => Some(50),
+        [Nuc::T, Nuc::A, Nuc::T] => Some(51),
+        [Nuc::T, Nuc::C, Nuc::A] => Some(52),
+        [Nuc::T, Nuc::C, Nuc::C] => Some(53),
+        [Nuc::T, Nuc::C, Nuc::G] => Some(54),
+        [Nuc::T, Nuc::C, Nuc::T] => Some(55),
+        [Nuc::T, Nuc::G, Nuc::A] => Some(56),
+        [Nuc::T, Nuc::G, Nuc::C] => Some(57),
+        [Nuc::T, Nuc::G, Nuc::G] => Some(58),
+        [Nuc::T, Nuc::G, Nuc::T] => Some(59),
+        [Nuc::T, Nuc::T, Nuc::A] => Some(60),
+        [Nuc::T, Nuc::T, Nuc::C] => Some(61),
+        [Nuc::T, Nuc::T, Nuc::G] => Some(62),
+        [Nuc::T, Nuc::T, Nuc::T] => Some(63),
+        _ => None,
     }
 }
 
