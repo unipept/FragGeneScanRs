@@ -1,5 +1,7 @@
+use std::ffi::OsStr;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Lines};
+use std::io::ErrorKind;
+use std::io::{self, BufRead, Lines};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -154,16 +156,46 @@ pub fn get_train_from_file(
     Ok((global, locals))
 }
 
-fn lines_from_file(filename: &PathBuf) -> Result<Lines<BufReader<File>>, TrainingDataError> {
-    Ok(io::BufReader::new(
-        File::open(filename).map_err(|e| TrainingDataError::Io(filename.to_owned(), e))?,
-    )
-    .lines())
+fn lines_from_bytes(bytes: &'static [u8]) -> Lines<Box<dyn BufRead>> {
+    let b: Box<dyn BufRead> = Box::new(bytes);
+    b.lines()
 }
 
-fn next_line(
+fn lines_from_file(filename: &PathBuf) -> Result<Lines<Box<dyn BufRead>>, TrainingDataError> {
+    match File::open(filename) {
+        Ok(file) => {
+            let b: Box<dyn BufRead> = Box::new(io::BufReader::new(file));
+            Ok(b.lines())
+        }
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            match filename.file_name().and_then(OsStr::to_str) {
+                Some("454_10") => Ok(lines_from_bytes(include_bytes!("../train/454_10"))),
+                Some("454_30") => Ok(lines_from_bytes(include_bytes!("../train/454_30"))),
+                Some("454_5") => Ok(lines_from_bytes(include_bytes!("../train/454_5"))),
+                Some("complete") => Ok(lines_from_bytes(include_bytes!("../train/complete"))),
+                Some("gene") => Ok(lines_from_bytes(include_bytes!("../train/gene"))),
+                Some("illumina_1") => Ok(lines_from_bytes(include_bytes!("../train/illumina_1"))),
+                Some("illumina_10") => Ok(lines_from_bytes(include_bytes!("../train/illumina_10"))),
+                Some("illumina_5") => Ok(lines_from_bytes(include_bytes!("../train/illumina_5"))),
+                Some("noncoding") => Ok(lines_from_bytes(include_bytes!("../train/noncoding"))),
+                Some("pwm") => Ok(lines_from_bytes(include_bytes!("../train/pwm"))),
+                Some("rgene") => Ok(lines_from_bytes(include_bytes!("../train/rgene"))),
+                Some("sanger_10") => Ok(lines_from_bytes(include_bytes!("../train/sanger_10"))),
+                Some("sanger_5") => Ok(lines_from_bytes(include_bytes!("../train/sanger_5"))),
+                Some("start") => Ok(lines_from_bytes(include_bytes!("../train/start"))),
+                Some("start1") => Ok(lines_from_bytes(include_bytes!("../train/start1"))),
+                Some("stop") => Ok(lines_from_bytes(include_bytes!("../train/stop"))),
+                Some("stop1") => Ok(lines_from_bytes(include_bytes!("../train/stop1"))),
+                _ => Err(TrainingDataError::Io(filename.to_owned(), e)),
+            }
+        }
+        Err(e) => Err(TrainingDataError::Io(filename.to_owned(), e)),
+    }
+}
+
+fn next_line<R: BufRead>(
     filename: &PathBuf,
-    lines: &mut Lines<BufReader<File>>,
+    lines: &mut Lines<R>,
 ) -> Result<String, TrainingDataError> {
     lines
         .next()
