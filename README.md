@@ -102,6 +102,10 @@ complete genome (Escherichia coli str. K-12 substr. MG1655, 4639675bp),
 FragGeneScanRs is 3.5 and 2.4 times faster than FragGeneScan and 1.2 and
 many times faster than FGS+.
 
+![single threaded absolute execution times](meta/absolute-execution-time.png)
+
+![parallelization efficiency](meta/parallelization-efficiency.png)
+
 | Short reads      |  1 thread | 2 threads | 3 threads | 4 threads |
 |:-----------------|----------:|----------:|----------:|----------:|
 | FragGeneScan     |  11.2361s |   6.0421s |   4.5947s |   3.5992s |
