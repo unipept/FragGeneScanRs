@@ -2,13 +2,23 @@
 
 ## Installation
 
-### From source
-
-Run `cargo install --path .` in this directory after cloning it.
-
 ### From release
 
-To do.
+Download the build of the [latest release][release] for your platform
+and extract it somewhere in your path.
+
+[release]: https://github.com/unipept/FragGeneScanRs/releases/latest
+
+### From source
+
+FragGeneScanRs is written in Rust, so first head over to their
+[installation instructions][Rust]. After, clone this repository or
+download the source code of the [latest release][release]. In this
+directory, run `cargo install --path .` to install. The installation
+progress may prompt you to add a directory to your path so you can
+easily execute it.
+
+[Rust]: https://www.rust-lang.org/tools/install
 
 ## Usage
 
@@ -73,31 +83,33 @@ The complete list of options will be printed when running
 ## Execution time
 
 Benchmarks were done using the `meta/benchmark.sh` script on a 4-core
-Intel(R) Core(TM) i7-6500U CPU @ 2.50GHz with 8GB RAM. The datasets
+Intel(R) Core(TM) i5-7600K CPU @ 3.80GHz with 16GB RAM. The datasets
 used are the example datasets provided by FragGeneScan. The table
 below shows the average execution time of 10 runs. Detailed results
 may be found in `meta/benchmark.csv`. For the short reads (80bp),
-FragGeneScanRs is about 10 times faster than FragGeneScan and twice
-as fast as FragGeneScanPlus. For the long reads (1328bp) and the
+FragGeneScanRs is about 12 times faster than FragGeneScan and 1.2
+times as fast as FragGeneScanPlus. For the long reads (1328bp) and the
 complete genome (Escherichia coli str. K-12 substr. MG1655, 4639675bp),
-FragGeneScanRs is 3.5 and 2.4 times faster than FragGeneScan (FGS+
-crashes on complete reads).
+FragGeneScanRs is 3.5 and 2.4 times faster than FragGeneScan and 1.2 and
+many times faster than FGS+.
 
-| Short reads      | 1 thread | 2 threads | 3 threads | 4 threads |
-|:-----------------|---------:|----------:|----------:|----------:|
-| FragGeneScan     | 17.4531s |   9.2082s |   9.3818s |   7.3247s |
-| FragGeneScanPlus |  1.7709s |   0.9410s |   0.8632s |   0.8170s |
-| FragGeneScanRs   |  1.4469s |   0.7865s |   0.7256s |   0.6668s |
+| Short reads      |  1 thread | 2 threads | 3 threads | 4 threads |
+|:-----------------|----------:|----------:|----------:|----------:|
+| FragGeneScan     |  11.2361s |   6.0421s |   4.5947s |   3.5992s |
+| FragGeneScanPlus |   1.1971s |   0.6623s |   0.4772s |   0.4035s |
+| FragGeneScanRs   |   0.9974s |   0.5423s |   0.3887s |   0.3058s |
 
-| Long reads       | 1 thread | 2 threads | 3 threads | 4 threads |
-|:-----------------|---------:|----------:|----------:|----------:|
-| FragGeneScan     | 46.4709s |  25.4329s |  27.2826s |  22.0585s |
-| FragGeneScan     | 13.1824s |   6.7994s |   6.2426s |   6.0322s |
+| Long reads       |  1 thread | 2 threads | 3 threads | 4 threads |
+|:-----------------|----------:|----------:|----------:|----------:|
+| FragGeneScan     |  31.7019s |  17.0807s |   12.453s |   9.7152s |
+| FragGeneScanPlus |  10.5704s |   5.6104s |     3.95s |    2.956s |
+| FragGeneScanRs   |    8.643s |   4.4444s |   3.0728s |   2.3115s |
 
-| Complete genome  | 1 thread | 2 threads | 3 threads | 4 threads |
-|:-----------------|---------:|----------:|----------:|----------:|
-| FragGeneScan     |  4.9669s |   5.0641s |   5.0420s |   5.0722s |
-| FragGeneScanRs   |  2.0493s |   2.0635s |   2.0761s |   2.1108s |
+| complete genome  |  1 thread |
+|:-----------------|----------:|
+| FragGeneScan     |   3.5526s |
+| FragGeneScanPlus | 386.1725s |
+| FragGeneScanRs   |   1.3605s |
 
 The commands and arguments used for this benchmarks were:
 
@@ -113,12 +125,14 @@ The commands and arguments used for this benchmarks were:
 ./FragGeneScanRs -t complete -s example/NC_000913.fna -o example/NC_000913 -w 1
 ```
 
-By default, FragGeneScanPlus outputs only the predicted genes, not the metadata and DNA files. Below are measurements taken when those files aren't output by FragGeneScanRs either.
+By default, FragGeneScanPlus outputs only the predicted genes, not the
+metadata and DNA files. Below are measurements taken when those files
+aren't output by FragGeneScanRs either.
 
-| Short reads      | 1 thread | 2 threads | 3 threads | 4 threads |
-|:-----------------|---------:|----------:|----------:|----------:|
-| FragGeneScanPlus |  1.7911s |   0.9610s |   0.8821s |   0.8283s |
-| FragGeneScanRs   |  1.3573s |   0.7333s |   0.6949s |   0.6268s |
+| Short reads      |  1 thread | 2 threads | 3 threads | 4 threads |
+|:-----------------|----------:|----------:|----------:|----------:|
+| FragGeneScanPlus |    1.194s |   0.6606s |   0.4764s |   0.4018s |
+| FragGeneScanRs   |   0.9321s |   0.4994s |   0.3589s |   0.2817s |
 
 The commands used here are:
 
