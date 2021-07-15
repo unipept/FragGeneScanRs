@@ -22,9 +22,18 @@ easily execute it.
 
 ## Usage
 
-You can use FragGeneScanRs with the short options of FragGeneScan, as
-listed below. It also provides some additional options and long-form
-options, listed below that.
+You can use FragGeneScanRs with the short options of FragGeneScan but
+it also provides some additional options and long-form options. It
+reads from and writes to standard input and standard output by default,
+allowing shorter calls in case you only need the predicted proteins.
+
+```sh
+# get predictions for 454 pyrosequencing reads with about 1% error rate
+FragGeneScanRs -t 454_10 < example/NC_000913-454.fna > example/NC_000913-454.faa
+
+# get predictions for complete reads
+FragGeneScanRs -t complete -w 1 < example/NC_000913.fna > example/NC_000913.faa
+```
 
 ### Backwards compatible mode
 
