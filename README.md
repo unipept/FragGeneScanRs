@@ -71,10 +71,10 @@ where:
 
 ### Additional options
 
-* `-m meta_file`, `-d dna_file` and `-e aa_file` can be used to write
-  output to specific files, instead of having the program create filenames
-  with predetermined extentions. These take precedence over the `-o`
-  option.
+* `-m meta_file`, `-n nucleotide_file` and `-a aa_file` can be used to
+  write output to specific files, instead of having the program create
+  filenames with predetermined extentions. These take precedence over
+  the `-o` option.
 
 * Leaving out the `-o` option or using the name `stdout` causes
   FragGeneScanRs to only write the predicted proteins to standard output.
