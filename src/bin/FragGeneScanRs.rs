@@ -1,9 +1,11 @@
 //! FragGeneScanRs executable
 #![allow(non_snake_case)]
 
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
+use std::ops::DerefMut;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -177,12 +179,14 @@ fn run<R: Read + Send, W: Write + Send>(
         .num_threads(thread_num)
         .build_global()?;
 
+    let buffer = Mutex::new(OutputBuffer::new());
     let aastream = aastream.map(Mutex::new);
     let metastream = metastream.map(Mutex::new);
     let dnastream = dnastream.map(Mutex::new);
     Chunked::new(100, fasta::Reader::new(inputseqs).into_records())
+        .enumerate()
         .par_bridge()
-        .map(|recordvec| {
+        .map(|(index, recordvec)| {
             let mut metabuf = Vec::new();
             let mut dnabuf = Vec::new();
             let mut aabuf = Vec::new();
@@ -207,14 +211,18 @@ fn run<R: Read + Send, W: Write + Send>(
                     read_prediction.protein(&mut aabuf, whole_genome)?;
                 }
             }
-            if let Some(metastream) = &metastream {
-                metastream.lock().unwrap().write_all(&metabuf)?;
-            }
-            if let Some(dnastream) = &dnastream {
-                dnastream.lock().unwrap().write_all(&dnabuf)?;
-            }
-            if let Some(aastream) = &aastream {
-                aastream.lock().unwrap().write_all(&aabuf)?;
+            let mut locked_buffer = buffer.lock().unwrap();
+            locked_buffer.set(index, (metabuf, dnabuf, aabuf));
+            for (metabuf, dnabuf, aabuf) in locked_buffer.deref_mut() {
+                if let Some(metastream) = &metastream {
+                    metastream.lock().unwrap().write_all(&metabuf)?;
+                }
+                if let Some(dnastream) = &dnastream {
+                    dnastream.lock().unwrap().write_all(&dnabuf)?;
+                }
+                if let Some(aastream) = &aastream {
+                    aastream.lock().unwrap().write_all(&aabuf)?;
+                }
             }
             Ok(())
         })
@@ -248,6 +256,41 @@ impl<I: Iterator> Iterator for Chunked<I> {
             None
         } else {
             Some(items)
+        }
+    }
+}
+
+struct OutputBuffer<I> {
+    next: usize,
+    queue: VecDeque<Option<I>>,
+}
+
+impl<I> OutputBuffer<I> {
+    fn new() -> Self {
+        OutputBuffer {
+            next: 0,
+            queue: VecDeque::new(),
+        }
+    }
+
+    fn set(&mut self, index: usize, item: I) {
+        while self.next + self.queue.len() <= index {
+            self.queue.push_back(None);
+        }
+        self.queue[index - self.next] = Some(item);
+    }
+}
+
+impl<I> Iterator for OutputBuffer<I> {
+    type Item = I;
+
+    fn next(&mut self) -> Option<I> {
+        if self.queue.front().map(Option::is_some).unwrap_or(false) {
+            let item = self.queue.pop_front().unwrap().unwrap();
+            self.next += 1;
+            Some(item)
+        } else {
+            None
         }
     }
 }
