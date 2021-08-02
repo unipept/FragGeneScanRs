@@ -37,12 +37,12 @@ fn main() -> Result<()> {
             .takes_value(true)
             .default_value("stdin")
             .help("Sequence file name including the full path. Using 'stdin' (or not suplying this argument) reads from standard input."))
-        .arg(Arg::with_name("output-file")
+        .arg(Arg::with_name("output-prefix")
             .short("o")
-            .long("output-file-name")
-            .value_name("output_file_name")
+            .long("output-prefix")
+            .value_name("output_prefix")
             .takes_value(true)
-            .help("Output metadata, proteins and dna to files with this base name. Using 'stdout' write the predicted AA reads to standard output."))
+            .help("Output metadata (.out), proteins (.faa) and genes (.ffn) to files with this prefix. Use 'stdout' to write the predicted proteins to standard output."))
         .arg(Arg::with_name("complete")
             .short("w")
             .long("complete")
@@ -90,24 +90,17 @@ fn main() -> Result<()> {
             .takes_value(true)
             .help("Output metadata to this file (supersedes -o)."))
         .arg(Arg::with_name("aa-file")
-            .short("e")
+            .short("a")
             .long("aa-file")
             .value_name("aa_file")
             .takes_value(true)
-            .help("Output predicted AA reads to this file (supersedes -o)."))
-        .arg(Arg::with_name("dna-file")
-            .short("d")
-            .long("dna-file")
-            .value_name("dna_file")
+            .help("Output predicted proteins to this file (supersedes -o)."))
+        .arg(Arg::with_name("nucleotide-file")
+            .short("n")
+            .long("nucleotide-file")
+            .value_name("nucleotide_file")
             .takes_value(true)
-            .help("Output predicted DNA reads to this file (supersedes -o)."))
-        // .arg(Arg::with_name("translation-table")
-        //     .short("x")
-        //     .long("translation-table")
-        //     .value_name("translation_table")
-        //     .takes_value(true)
-        //     .default_value("11")
-        //     .help("Which translation table to use."))
+            .help("Output predicted genes to this file (supersedes -o)."))
         .get_matches();
 
     let (global, locals) = hmm::get_train_from_file(
@@ -120,17 +113,19 @@ fn main() -> Result<()> {
         filename => Box::new(File::open(filename)?),
     };
 
-    let mut aastream: Option<Box<dyn Write + Send>> =
-        match (matches.value_of("aa-file"), matches.value_of("output-file")) {
-            (Some(filename), _) => Some(Box::new(File::create(filename)?)),
-            (None, Some("stdout")) => Some(Box::new(io::stdout())),
-            (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".faa")?)),
-            (None, None) => None,
-        };
+    let mut aastream: Option<Box<dyn Write + Send>> = match (
+        matches.value_of("aa-file"),
+        matches.value_of("output-prefix"),
+    ) {
+        (Some(filename), _) => Some(Box::new(File::create(filename)?)),
+        (None, Some("stdout")) => Some(Box::new(io::stdout())),
+        (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".faa")?)),
+        (None, None) => None,
+    };
 
     let metastream: Option<File> = match (
         matches.value_of("meta-file"),
-        matches.value_of("output-file"),
+        matches.value_of("output-prefix"),
     ) {
         (Some(filename), _) => Some(File::create(filename)?),
         (None, Some("stdout")) => None,
@@ -139,8 +134,8 @@ fn main() -> Result<()> {
     };
 
     let dnastream: Option<File> = match (
-        matches.value_of("dna-file"),
-        matches.value_of("output-file"),
+        matches.value_of("nucleotide-file"),
+        matches.value_of("output-prefix"),
     ) {
         (Some(filename), _) => Some(File::create(filename)?),
         (None, Some("stdout")) => None,
