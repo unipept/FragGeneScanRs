@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
+use std::marker::Sync;
 use std::ops::DerefMut;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -115,7 +116,7 @@ fn main() -> Result<()> {
         filename => Box::new(File::open(filename)?),
     };
 
-    let mut aastream: Option<Box<dyn Write + Send>> = match (
+    let mut aastream: Option<Box<dyn Write + Send + Sync>> = match (
         matches.value_of("aa-file"),
         matches.value_of("output-prefix"),
     ) {
@@ -164,7 +165,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run<R: Read + Send, W: Write + Send>(
+fn run<R: Read + Send, W: Write + Send + Sync>(
     global: Box<hmm::Global>,
     locals: Vec<hmm::Local>,
     inputseqs: R,
@@ -179,10 +180,11 @@ fn run<R: Read + Send, W: Write + Send>(
         .num_threads(thread_num)
         .build_global()?;
 
-    let buffer = Mutex::new(OutputBuffer::new());
-    let aastream = aastream.map(Mutex::new);
-    let metastream = metastream.map(Mutex::new);
-    let dnastream = dnastream.map(Mutex::new);
+    let hasmeta = metastream.is_some();
+    let hasdna = metastream.is_some();
+    let hasaa = metastream.is_some();
+    let output = Mutex::new(OutputBuffer::new(aastream, metastream, dnastream));
+
     Chunked::new(100, fasta::Reader::new(inputseqs).into_records())
         .enumerate()
         .par_bridge()
@@ -201,27 +203,28 @@ fn run<R: Read + Send, W: Write + Send>(
                     nseq,
                     whole_genome,
                 );
-                if metastream.is_some() {
+                if hasmeta {
                     read_prediction.meta(&mut metabuf)?;
                 }
-                if dnastream.is_some() {
+                if hasdna {
                     read_prediction.dna(&mut dnabuf, formatted)?;
                 }
-                if aastream.is_some() {
+                if hasaa {
                     read_prediction.protein(&mut aabuf, whole_genome)?;
                 }
             }
-            let mut locked_buffer = buffer.lock().unwrap();
-            locked_buffer.set(index, (metabuf, dnabuf, aabuf));
-            for (metabuf, dnabuf, aabuf) in locked_buffer.deref_mut() {
-                if let Some(metastream) = &metastream {
-                    metastream.lock().unwrap().write_all(&metabuf)?;
+            let mut buffer = output.lock().unwrap();
+            buffer.set(index, (metabuf, dnabuf, aabuf));
+            let bufs = buffer.deref_mut().collect::<Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>>();
+            for (metabuf, dnabuf, aabuf) in bufs {
+                if let Some(metastream) = &mut buffer.metastream {
+                    &mut metastream.write_all(&metabuf)?;
                 }
-                if let Some(dnastream) = &dnastream {
-                    dnastream.lock().unwrap().write_all(&dnabuf)?;
+                if let Some(dnastream) = &mut buffer.dnastream {
+                    &mut dnastream.write_all(&dnabuf)?;
                 }
-                if let Some(aastream) = &aastream {
-                    aastream.lock().unwrap().write_all(&aabuf)?;
+                if let Some(aastream) = &mut buffer.aastream {
+                    &mut aastream.write_all(&aabuf)?;
                 }
             }
             Ok(())
@@ -260,16 +263,22 @@ impl<I: Iterator> Iterator for Chunked<I> {
     }
 }
 
-struct OutputBuffer<I> {
+struct OutputBuffer<I, W: Write + Send> {
     next: usize,
     queue: VecDeque<Option<I>>,
+    aastream: Option<W>,
+    metastream: Option<File>,
+    dnastream: Option<File>,
 }
 
-impl<I> OutputBuffer<I> {
-    fn new() -> Self {
+impl<I, W: Write + Send> OutputBuffer<I, W> {
+    fn new(aastream: Option<W>, metastream: Option<File>, dnastream: Option<File>) -> Self {
         OutputBuffer {
             next: 0,
             queue: VecDeque::new(),
+            aastream: aastream,
+            metastream: metastream,
+            dnastream: dnastream,
         }
     }
 
@@ -281,7 +290,7 @@ impl<I> OutputBuffer<I> {
     }
 }
 
-impl<I> Iterator for OutputBuffer<I> {
+impl <I, W: Write + Send> Iterator for OutputBuffer<I, W> {
     type Item = I;
 
     fn next(&mut self) -> Option<I> {
