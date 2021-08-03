@@ -5,8 +5,6 @@ use std::collections::VecDeque;
 use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
-use std::marker::Sync;
-use std::ops::DerefMut;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -104,6 +102,10 @@ fn main() -> Result<()> {
             .value_name("nucleotide_file")
             .takes_value(true)
             .help("Output predicted genes to this file (supersedes -o)."))
+        .arg(Arg::with_name("unordered")
+            .short("u")
+            .long("unordered")
+            .help("Do not preserve record order in output (faster)."))
         .get_matches();
 
     let (global, locals) = hmm::get_train_from_file(
@@ -116,7 +118,7 @@ fn main() -> Result<()> {
         filename => Box::new(File::open(filename)?),
     };
 
-    let mut aastream: Option<Box<dyn Write + Send + Sync>> = match (
+    let mut aastream: Option<Box<dyn Write + Send>> = match (
         matches.value_of("aa-file"),
         matches.value_of("output-prefix"),
     ) {
@@ -126,23 +128,23 @@ fn main() -> Result<()> {
         (None, None) => None,
     };
 
-    let metastream: Option<File> = match (
+    let metastream: Option<Box<dyn Write + Send>> = match (
         matches.value_of("meta-file"),
         matches.value_of("output-prefix"),
     ) {
-        (Some(filename), _) => Some(File::create(filename)?),
+        (Some(filename), _) => Some(Box::new(File::create(filename)?)),
         (None, Some("stdout")) => None,
-        (None, Some(filename)) => Some(File::create(filename.to_owned() + ".out")?),
+        (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".out")?)),
         (None, None) => None,
     };
 
-    let dnastream: Option<File> = match (
+    let dnastream: Option<Box<dyn Write + Send>> = match (
         matches.value_of("nucleotide-file"),
         matches.value_of("output-prefix"),
     ) {
-        (Some(filename), _) => Some(File::create(filename)?),
+        (Some(filename), _) => Some(Box::new(File::create(filename)?)),
         (None, Some("stdout")) => None,
-        (None, Some(filename)) => Some(File::create(filename.to_owned() + ".ffn")?),
+        (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".ffn")?)),
         (None, None) => None,
     };
 
@@ -150,28 +152,42 @@ fn main() -> Result<()> {
         aastream = Some(Box::new(io::stdout()));
     }
 
-    run(
-        global,
-        locals,
-        inputseqs,
-        aastream,
-        metastream,
-        dnastream,
-        matches.value_of("complete").unwrap() == "1",
-        matches.is_present("formatted"),
-        usize::from_str_radix(matches.value_of("thread-num").unwrap(), 10)?,
-    )?;
+    if matches.is_present("unordered") {
+        run(
+            global,
+            locals,
+            inputseqs,
+            aastream.map(UnbufferingBuffer::new),
+            metastream.map(UnbufferingBuffer::new),
+            dnastream.map(UnbufferingBuffer::new),
+            matches.value_of("complete").unwrap() == "1",
+            matches.is_present("formatted"),
+            usize::from_str_radix(matches.value_of("thread-num").unwrap(), 10)?,
+        )?;
+    } else {
+        run(
+            global,
+            locals,
+            inputseqs,
+            aastream.map(SortingBuffer::new),
+            metastream.map(SortingBuffer::new),
+            dnastream.map(SortingBuffer::new),
+            matches.value_of("complete").unwrap() == "1",
+            matches.is_present("formatted"),
+            usize::from_str_radix(matches.value_of("thread-num").unwrap(), 10)?,
+        )?;
+    }
 
     Ok(())
 }
 
-fn run<R: Read + Send, W: Write + Send + Sync>(
+fn run<R: Read + Send, W: WritingBuffer + Send>(
     global: Box<hmm::Global>,
     locals: Vec<hmm::Local>,
     inputseqs: R,
-    aastream: Option<W>,
-    metastream: Option<File>,
-    dnastream: Option<File>,
+    aa_buffer: Option<W>,
+    meta_buffer: Option<W>,
+    dna_buffer: Option<W>,
     whole_genome: bool,
     formatted: bool,
     thread_num: usize,
@@ -180,10 +196,9 @@ fn run<R: Read + Send, W: Write + Send + Sync>(
         .num_threads(thread_num)
         .build_global()?;
 
-    let hasmeta = metastream.is_some();
-    let hasdna = metastream.is_some();
-    let hasaa = metastream.is_some();
-    let output = Mutex::new(OutputBuffer::new(aastream, metastream, dnastream));
+    let meta_buffer = meta_buffer.map(Mutex::new);
+    let dna_buffer = dna_buffer.map(Mutex::new);
+    let aa_buffer = aa_buffer.map(Mutex::new);
 
     Chunked::new(100, fasta::Reader::new(inputseqs).into_records())
         .enumerate()
@@ -203,29 +218,24 @@ fn run<R: Read + Send, W: Write + Send + Sync>(
                     nseq,
                     whole_genome,
                 );
-                if hasmeta {
+                if meta_buffer.is_some() {
                     read_prediction.meta(&mut metabuf)?;
                 }
-                if hasdna {
+                if dna_buffer.is_some() {
                     read_prediction.dna(&mut dnabuf, formatted)?;
                 }
-                if hasaa {
+                if aa_buffer.is_some() {
                     read_prediction.protein(&mut aabuf, whole_genome)?;
                 }
             }
-            let mut buffer = output.lock().unwrap();
-            buffer.set(index, (metabuf, dnabuf, aabuf));
-            let bufs = buffer.deref_mut().collect::<Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>>();
-            for (metabuf, dnabuf, aabuf) in bufs {
-                if let Some(metastream) = &mut buffer.metastream {
-                    &mut metastream.write_all(&metabuf)?;
-                }
-                if let Some(dnastream) = &mut buffer.dnastream {
-                    &mut dnastream.write_all(&dnabuf)?;
-                }
-                if let Some(aastream) = &mut buffer.aastream {
-                    &mut aastream.write_all(&aabuf)?;
-                }
+            if let Some(buffer) = &meta_buffer {
+                buffer.lock().unwrap().add(index, metabuf)?;
+            }
+            if let Some(buffer) = &dna_buffer {
+                buffer.lock().unwrap().add(index, dnabuf)?;
+            }
+            if let Some(buffer) = &aa_buffer {
+                buffer.lock().unwrap().add(index, aabuf)?;
             }
             Ok(())
         })
@@ -263,43 +273,55 @@ impl<I: Iterator> Iterator for Chunked<I> {
     }
 }
 
-struct OutputBuffer<I, W: Write + Send> {
-    next: usize,
-    queue: VecDeque<Option<I>>,
-    aastream: Option<W>,
-    metastream: Option<File>,
-    dnastream: Option<File>,
+trait WritingBuffer {
+    fn add(&mut self, index: usize, item: Vec<u8>) -> Result<()>;
 }
 
-impl<I, W: Write + Send> OutputBuffer<I, W> {
-    fn new(aastream: Option<W>, metastream: Option<File>, dnastream: Option<File>) -> Self {
-        OutputBuffer {
+struct SortingBuffer<W: Write + Send> {
+    next: usize,
+    queue: VecDeque<Option<Vec<u8>>>,
+    stream: W,
+}
+
+impl<W: Write + Send> SortingBuffer<W> {
+    fn new(stream: W) -> Self {
+        SortingBuffer {
             next: 0,
             queue: VecDeque::new(),
-            aastream: aastream,
-            metastream: metastream,
-            dnastream: dnastream,
+            stream: stream,
         }
     }
+}
 
-    fn set(&mut self, index: usize, item: I) {
+impl<W: Write + Send> WritingBuffer for SortingBuffer<W> {
+    fn add(&mut self, index: usize, item: Vec<u8>) -> Result<()> {
         while self.next + self.queue.len() <= index {
             self.queue.push_back(None);
         }
         self.queue[index - self.next] = Some(item);
+
+        while self.queue.front().map(Option::is_some).unwrap_or(false) {
+            let item = self.queue.pop_front().unwrap().unwrap();
+            self.next += 1;
+            self.stream.write_all(&item)?;
+        }
+        Ok(())
     }
 }
 
-impl <I, W: Write + Send> Iterator for OutputBuffer<I, W> {
-    type Item = I;
+struct UnbufferingBuffer<W: Write + Send> {
+    stream: W,
+}
 
-    fn next(&mut self) -> Option<I> {
-        if self.queue.front().map(Option::is_some).unwrap_or(false) {
-            let item = self.queue.pop_front().unwrap().unwrap();
-            self.next += 1;
-            Some(item)
-        } else {
-            None
-        }
+impl<W: Write + Send> UnbufferingBuffer<W> {
+    fn new(stream: W) -> Self {
+        UnbufferingBuffer { stream }
+    }
+}
+
+impl<W: Write + Send> WritingBuffer for UnbufferingBuffer<W> {
+    fn add(&mut self, _: usize, item: Vec<u8>) -> Result<()> {
+        self.stream.write_all(&item)?;
+        Ok(())
     }
 }
