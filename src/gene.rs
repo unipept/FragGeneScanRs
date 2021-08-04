@@ -1,7 +1,3 @@
-use std::fs::File;
-use std::io;
-use std::io::Write;
-
 extern crate thiserror;
 use thiserror::Error;
 
@@ -21,30 +17,26 @@ impl ReadPrediction {
         }
     }
 
-    pub fn print_meta(&self, file: &mut File) -> Result<(), GeneError> {
+    pub fn meta(&self, buf: &mut Vec<u8>) -> Result<(), GeneError> {
         if !self.genes.is_empty() {
-            file.write_all(&format!(">{}\n", std::str::from_utf8(&self.head)?).into_bytes())?;
+            buf.append(&mut format!(">{}\n", std::str::from_utf8(&self.head)?).into_bytes())
         }
         for gene in &self.genes {
-            gene.print_meta(file)?;
-        }
-        Ok(())
-    }
-
-    pub fn print_dna(&self, file: &mut File, formatted: bool) -> Result<(), GeneError> {
-        for gene in &self.genes {
-            gene.print_dna(file, &self.head, formatted)?;
+            gene.meta(buf);
         }
         Ok(())
     }
 
-    pub fn print_protein<W: Write>(
-        &self,
-        whole_genome: bool,
-        file: &mut W,
-    ) -> Result<(), GeneError> {
+    pub fn dna(&self, buf: &mut Vec<u8>, formatted: bool) -> Result<(), GeneError> {
         for gene in &self.genes {
-            gene.print_protein(file, &self.head, whole_genome)?;
+            gene.dna(buf, &self.head, formatted)?;
+        }
+        Ok(())
+    }
+
+    pub fn protein(&self, buf: &mut Vec<u8>, whole_genome: bool) -> Result<(), GeneError> {
+        for gene in &self.genes {
+            gene.protein(buf, &self.head, whole_genome)?;
         }
         Ok(())
     }
@@ -63,9 +55,9 @@ pub struct Gene {
 }
 
 impl Gene {
-    pub fn print_meta(&self, file: &mut File) -> Result<(), GeneError> {
-        file.write_all(
-            &format!(
+    pub fn meta(&self, buf: &mut Vec<u8>) {
+        buf.append(
+            &mut format!(
                 "{}\t{}\t{}\t{}\t{:.6}\tI:{}\tD:{}\n",
                 self.metastart,
                 self.end,
@@ -82,16 +74,10 @@ impl Gene {
                     .collect::<String>()
             )
             .into_bytes(),
-        )?;
-        Ok(())
+        );
     }
 
-    pub fn print_dna(
-        &self,
-        file: &mut File,
-        head: &Vec<u8>,
-        formatted: bool,
-    ) -> Result<(), GeneError> {
+    pub fn dna(&self, buf: &mut Vec<u8>, head: &Vec<u8>, formatted: bool) -> Result<(), GeneError> {
         let dna: Vec<u8> = match (self.forward_strand, formatted) {
             (true, true) => self.dna.iter().map(|&n| u8::from(n)).collect(),
             (true, false) => self
@@ -110,8 +96,8 @@ impl Gene {
                 .collect(),
         };
 
-        file.write_all(
-            &format!(
+        buf.append(
+            &mut format!(
                 ">{}_{}_{}_{}\n{}\n",
                 std::str::from_utf8(head)?,
                 self.start,
@@ -120,14 +106,14 @@ impl Gene {
                 std::str::from_utf8(&dna)?,
             )
             .into_bytes(),
-        )?;
+        );
 
         Ok(())
     }
 
-    pub fn print_protein<W: Write>(
+    pub fn protein(
         &self,
-        file: &mut W,
+        buf: &mut Vec<u8>,
         head: &Vec<u8>,
         whole_genome: bool,
     ) -> Result<(), GeneError> {
@@ -167,8 +153,8 @@ impl Gene {
             }
         }
 
-        file.write_all(
-            &format!(
+        buf.append(
+            &mut format!(
                 ">{}_{}_{}_{}\n{}\n",
                 std::str::from_utf8(head)?,
                 self.start,
@@ -177,15 +163,13 @@ impl Gene {
                 std::str::from_utf8(&protein)?,
             )
             .into_bytes(),
-        )?;
+        );
         Ok(())
     }
 }
 
 #[derive(Error, Debug)]
 pub enum GeneError {
-    #[error("could not write to file")]
-    IoError(#[from] io::Error),
     #[error("could not convert header back to UTF-8")]
     Utf8Error(#[from] std::str::Utf8Error),
 }
