@@ -180,30 +180,74 @@ fn run<R: Read + Send, W: Write + Send>(
     let aastream = aastream.map(Mutex::new);
     let metastream = metastream.map(Mutex::new);
     let dnastream = dnastream.map(Mutex::new);
-    fasta::Reader::new(inputseqs)
-        .into_records()
+    Chunked::new(100, fasta::Reader::new(inputseqs).into_records())
         .par_bridge()
-        .map(|record| {
-            let fasta::OwnedRecord { mut head, seq } = record?;
-            head = head.into_iter().take_while(u8::is_ascii_graphic).collect();
-            let nseq: Vec<Nuc> = seq.into_iter().map(Nuc::from).collect();
-            let read_prediction = viterbi(
-                &global,
-                &locals[count_cg_content(&nseq)],
-                head,
-                nseq,
-                whole_genome,
-            );
+        .map(|recordvec| {
+            let mut metabuf = Vec::new();
+            let mut dnabuf = Vec::new();
+            let mut aabuf = Vec::new();
+            for record in recordvec {
+                let fasta::OwnedRecord { mut head, seq } = record?;
+                head = head.into_iter().take_while(u8::is_ascii_graphic).collect();
+                let nseq: Vec<Nuc> = seq.into_iter().map(Nuc::from).collect();
+                let read_prediction = viterbi(
+                    &global,
+                    &locals[count_cg_content(&nseq)],
+                    head,
+                    nseq,
+                    whole_genome,
+                );
+                if metastream.is_some() {
+                    read_prediction.meta(&mut metabuf)?;
+                }
+                if dnastream.is_some() {
+                    read_prediction.dna(&mut dnabuf, formatted)?;
+                }
+                if aastream.is_some() {
+                    read_prediction.protein(&mut aabuf, whole_genome)?;
+                }
+            }
             if let Some(metastream) = &metastream {
-                read_prediction.print_meta(&mut *metastream.lock().unwrap())?; // TODO lock together content
+                metastream.lock().unwrap().write_all(&metabuf)?;
             }
             if let Some(dnastream) = &dnastream {
-                read_prediction.print_dna(&mut *dnastream.lock().unwrap(), formatted)?;
+                dnastream.lock().unwrap().write_all(&dnabuf)?;
             }
             if let Some(aastream) = &aastream {
-                read_prediction.print_protein(whole_genome, &mut *aastream.lock().unwrap())?;
+                aastream.lock().unwrap().write_all(&aabuf)?;
             }
             Ok(())
         })
         .collect()
+}
+
+struct Chunked<I: Iterator> {
+    size: usize,
+    iterator: I,
+}
+
+impl<I: Iterator> Chunked<I> {
+    fn new(size: usize, iterator: I) -> Self {
+        Chunked { size, iterator }
+    }
+}
+
+impl<I: Iterator> Iterator for Chunked<I> {
+    type Item = Vec<I::Item>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut items = Vec::with_capacity(self.size);
+        for _ in 0..self.size {
+            if let Some(item) = self.iterator.next() {
+                items.push(item);
+            } else {
+                break;
+            }
+        }
+        if items.is_empty() {
+            None
+        } else {
+            Some(items)
+        }
+    }
 }
