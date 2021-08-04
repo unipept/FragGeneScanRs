@@ -86,6 +86,10 @@ where:
 * `-r train_file_dir` can change the directory containing the training
   files, so you can put it anywhere on your system.
 
+* `-u` can be used for some additional speed when using multithreading. The
+  output will no longer be in the same order as the input (as in FGS and
+  FGS+).
+
 The complete list of options will be printed when running
 `FragGeneScanRs --help`.
 

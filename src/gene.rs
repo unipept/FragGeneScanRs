@@ -17,6 +17,26 @@ impl ReadPrediction {
         }
     }
 
+    pub fn append_to(
+        &self,
+        aabuf: &mut Option<Vec<u8>>,
+        metabuf: &mut Option<Vec<u8>>,
+        dnabuf: &mut Option<Vec<u8>>,
+        formatted: bool,
+        whole_genome: bool,
+    ) -> Result<(), GeneError> {
+        if let Some(metabuf) = metabuf {
+            self.meta(&mut *metabuf)?;
+        }
+        if let Some(dnabuf) = dnabuf {
+            self.dna(&mut *dnabuf, formatted)?;
+        }
+        if let Some(aabuf) = aabuf {
+            self.protein(&mut *aabuf, whole_genome)?;
+        }
+        Ok(())
+    }
+
     pub fn meta(&self, buf: &mut Vec<u8>) -> Result<(), GeneError> {
         if !self.genes.is_empty() {
             buf.append(&mut format!(">{}\n", std::str::from_utf8(&self.head)?).into_bytes())
