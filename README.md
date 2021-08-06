@@ -95,38 +95,39 @@ The complete list of options will be printed when running
 
 ## Execution time
 
-Benchmarks were done using the `meta/benchmark.sh` script on a 4-core
-Intel(R) Core(TM) i5-7600K CPU @ 3.80GHz with 16GB RAM. The datasets
+Benchmarks were done using the `meta/benchmark.sh` script on a 16-core
+Intel(R) Xeon(R) CPU E5-2650 v2 @ 2.60GHz with 195GB RAM. The datasets
 used are the example datasets provided by FragGeneScan. The table
-below shows the average execution time of 10 runs. Detailed results
+below shows the average execution time of 5 runs. Detailed results
 may be found in `meta/benchmark.csv`. For the short reads (80bp),
-FragGeneScanRs is about 12 times faster than FragGeneScan and 1.2
+FragGeneScanRs is about 22 times faster than FragGeneScan and 1.2
 times as fast as FragGeneScanPlus. For the long reads (1328bp) and the
 complete genome (Escherichia coli str. K-12 substr. MG1655, 4639675bp),
-FragGeneScanRs is 3.5 and 2.4 times faster than FragGeneScan and 1.2 and
-many times faster than FGS+.
+FragGeneScanRs is 4.3 and 2.2 times faster than FragGeneScan and 1.6 and
+233.6 times faster than FGS+.
 
-![single threaded absolute execution times](meta/absolute-execution-time.png)
+![single threaded absolute execution times](meta/absolute-wrapped.png)
 
-![parallelization efficiency](meta/parallelization-efficiency.png)
+![parallelization efficiency](meta/parallel-efficiency-wrapped.png)
 
-| Short reads      |  1 thread | 2 threads | 3 threads | 4 threads |
-|:-----------------|----------:|----------:|----------:|----------:|
-| FragGeneScan     |  11.2361s |   6.0421s |   4.5947s |   3.5992s |
-| FragGeneScanPlus |   1.1971s |   0.6623s |   0.4772s |   0.4035s |
-| FragGeneScanRs   |   0.9974s |   0.5423s |   0.3887s |   0.3058s |
+| Short reads      |  1 thread | 2 threads | 4 threads | 8 threads | 16 threads |
+|:-----------------|----------:|----------:|----------:|----------:|-----------:|
+| FragGeneScan     | 731 r/s | 1257 r/s | 2158 r/s | 3408 r/s | 3371 r/s |
+| FragGeneScanPlus | 13830 r/s | 23997 r/s | 37882 r/s | 54610 r/s | / |
+| FragGeneScanRs   | 16119 r/s | 29326 r/s | 48593 r/s | 73965 r/s | 99885 r/s |
 
-| Long reads       |  1 thread | 2 threads | 3 threads | 4 threads |
-|:-----------------|----------:|----------:|----------:|----------:|
-| FragGeneScan     |  31.7019s |  17.0807s |   12.453s |   9.7152s |
-| FragGeneScanPlus |  10.5704s |   5.6104s |     3.95s |    2.956s |
-| FragGeneScanRs   |    8.643s |   4.4444s |   3.0728s |   2.3115s |
+| Long reads       |  1 thread | 2 threads | 4 threads | 8 threads | 16 threads |
+|:-----------------|----------:|----------:|----------:|----------:|-----------:|
+| FragGeneScan     | 317 r/s | 545 r/s | 1053 r/s | 1715 r/s | 1968 r/s |
+| FragGeneScanPlus | 863 r/s | 1596 r/s | 2910 r/s | 5573 r/s | / |
+| FragGeneScanRs   | 1358 r/s | 2674 r/s | 5051 r/s | 8803 r/s | 14343 r/s |
 
-| complete genome  |  1 thread |
+| Complete genome  |  1 thread |
 |:-----------------|----------:|
-| FragGeneScan     |   3.5526s |
-| FragGeneScanPlus | 386.1725s |
-| FragGeneScanRs   |   1.3605s |
+| FragGeneScan     | 6.668 s |
+| FragGeneScanPlus | 712.265 s |
+| FragGeneScanRs   | 3.049 s |
+
 
 The commands and arguments used for this benchmarks were:
 
@@ -136,9 +137,11 @@ The commands and arguments used for this benchmarks were:
 ./FragGeneScanRs -t 454_10 -s example/NC_000913-454.fna -o example/NC_000913-454 -w 0
 
 ./FragGeneScan -t complete -s example/contigs.fna -o example/contigs -w 1
+./FGS+ -t complete -s example/contigs.fna -o example/contigs -w 1
 ./FragGeneScanRs -t complete -s example/contigs.fna -o example/contigs -w 1
 
 ./FragGeneScan -t complete -s example/NC_000913.fna -o example/NC_000913 -w 1
+./FGS+ -t complete -s example/NC_000913.fna -o example/NC_000913 -w 1
 ./FragGeneScanRs -t complete -s example/NC_000913.fna -o example/NC_000913 -w 1
 ```
 
@@ -146,10 +149,10 @@ By default, FragGeneScanPlus outputs only the predicted genes, not the
 metadata and DNA files. Below are measurements taken when those files
 aren't output by FragGeneScanRs either.
 
-| Short reads      |  1 thread | 2 threads | 3 threads | 4 threads |
+| Short reads      |  1 thread | 2 threads | 4 threads | 8 threads |
 |:-----------------|----------:|----------:|----------:|----------:|
-| FragGeneScanPlus |    1.194s |   0.6606s |   0.4764s |   0.4018s |
-| FragGeneScanRs   |   0.9321s |   0.4994s |   0.3589s |   0.2817s |
+| FragGeneScanPlus | 13765 r/s | 24500 r/s | 39548 r/s | 57147 r/s |
+| FragGeneScanRs   | 16815 r/s | 28784 r/s | 50157 r/s | 75397 r/s |
 
 The commands used here are:
 
@@ -157,3 +160,9 @@ The commands used here are:
 ./FGS+ -t 454_10 -s example/NC_000913-454.fna -o stdout -w 0 > /dev/null
 ./FragGeneScanRs -t 454_10 -s example/NC_000913-454.fna -o stdout -w 0 > /dev/null
 ```
+
+## Memory usage
+
+Above command were also used to measure memory usage.
+
+![memory usage](meta/memory-usage-wrapped.png)
