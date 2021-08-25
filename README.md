@@ -12,12 +12,14 @@ and extract it somewhere in your path.
 ### From source
 
 FragGeneScanRs is written in Rust, so first head over to their
-[installation instructions][Rust]. Afterwards, clone this repository or
-download the source code of the [latest release][release]. In this
-directory, run `cargo install --path .` to install. The installation
-progress may prompt you to add a directory to your path so you can
-easily execute it.
+[installation instructions][Rust]. Afterwards, you can install the crate
+from [crates.io][crate] with `cargo install frag_gene_scan_rs`, or you
+can install from here. Clone this repository or download the source code
+of the [latest release][release]. In this directory, run `cargo install
+--path .` to install. The installation progress may prompt you to add a
+directory to your path so you can easily execute it.
 
+[crate]: https://crates.io/crates/frag_gene_scan_rs
 [Rust]: https://www.rust-lang.org/tools/install
 
 ## Usage
