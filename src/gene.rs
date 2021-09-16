@@ -47,6 +47,16 @@ impl ReadPrediction {
         Ok(())
     }
 
+    pub fn gff(&self, buf: &mut Vec<u8>) -> Result<(), GeneError> {
+        if !self.genes.is_empty() {
+            let head = std::str::from_utf8(&self.head)?;
+            for gene in &self.genes {
+                gene.gff(buf, &head);
+            }
+        }
+        Ok(())
+    }
+
     pub fn dna(&self, buf: &mut Vec<u8>, formatted: bool) -> Result<(), GeneError> {
         for gene in &self.genes {
             gene.dna(buf, &self.head, formatted)?;
@@ -92,6 +102,24 @@ impl Gene {
                     .iter()
                     .map(|i: &usize| { format!("{},", i) })
                     .collect::<String>()
+            )
+            .into_bytes(),
+        );
+    }
+
+    pub fn gff(&self, buf: &mut Vec<u8>, head: &str) {
+        buf.append(
+            &mut format!(
+                "{}\tFGS\tCDS\t{}\t{}\t.\t{}\t{}\tID={}_{}_{}_{};product=predicted protein\n",
+                head,
+                self.metastart,
+                self.end,
+                if self.forward_strand { '+' } else { '-' },
+                self.frame - 1,
+                head,
+                self.metastart,
+                self.end,
+                if self.forward_strand { '+' } else { '-' }
             )
             .into_bytes(),
         );

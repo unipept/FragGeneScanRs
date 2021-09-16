@@ -43,7 +43,7 @@ fn main() -> Result<()> {
             .long("output-prefix")
             .value_name("output_prefix")
             .takes_value(true)
-            .help("Output metadata (.out), proteins (.faa) and genes (.ffn) to files with this prefix. Use 'stdout' to write the predicted proteins to standard output."))
+            .help("Output metadata (.out and .gff), proteins (.faa) and genes (.ffn) to files with this prefix. Use 'stdout' to write the predicted proteins to standard output."))
         .arg(Arg::with_name("complete")
             .short("w")
             .long("complete")
@@ -90,6 +90,12 @@ fn main() -> Result<()> {
             .value_name("meta_file")
             .takes_value(true)
             .help("Output metadata to this file (supersedes -o)."))
+        .arg(Arg::with_name("gff-file")
+            .short("g")
+            .long("gff-file")
+            .value_name("gff_file")
+            .takes_value(true)
+            .help("Output metadata to this gff formatted file (supersedes -o)."))
         .arg(Arg::with_name("aa-file")
             .short("a")
             .long("aa-file")
@@ -138,6 +144,20 @@ fn main() -> Result<()> {
         (None, None) => None,
     };
 
+    let mut gffstream: Option<Box<dyn Write + Send>> = match (
+        matches.value_of("gff-file"),
+        matches.value_of("output-prefix"),
+    ) {
+        (Some(filename), _) => Some(Box::new(File::create(filename)?)),
+        (None, Some("stdout")) => None,
+        (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".gff")?)),
+        (None, None) => None,
+    };
+
+    if let Some(ref mut gff) = &mut gffstream {
+        writeln!(gff, "##gff-version 3")?;
+    }
+
     let dnastream: Option<Box<dyn Write + Send>> = match (
         matches.value_of("nucleotide-file"),
         matches.value_of("output-prefix"),
@@ -148,7 +168,7 @@ fn main() -> Result<()> {
         (None, None) => None,
     };
 
-    if aastream.is_none() && metastream.is_none() && dnastream.is_none() {
+    if aastream.is_none() && metastream.is_none() && gffstream.is_none() && dnastream.is_none() {
         aastream = Some(Box::new(io::stdout()));
     }
 
@@ -159,6 +179,7 @@ fn main() -> Result<()> {
             inputseqs,
             aastream.map(UnbufferingBuffer::new),
             metastream.map(UnbufferingBuffer::new),
+            gffstream.map(UnbufferingBuffer::new),
             dnastream.map(UnbufferingBuffer::new),
             matches.value_of("complete").unwrap() == "1",
             matches.is_present("formatted"),
@@ -171,6 +192,7 @@ fn main() -> Result<()> {
             inputseqs,
             aastream.map(SortingBuffer::new),
             metastream.map(SortingBuffer::new),
+            gffstream.map(SortingBuffer::new),
             dnastream.map(SortingBuffer::new),
             matches.value_of("complete").unwrap() == "1",
             matches.is_present("formatted"),
@@ -187,6 +209,7 @@ fn run<R: Read + Send, W: WritingBuffer + Send>(
     inputseqs: R,
     aa_buffer: Option<W>,
     meta_buffer: Option<W>,
+    gff_buffer: Option<W>,
     dna_buffer: Option<W>,
     whole_genome: bool,
     formatted: bool,
@@ -197,6 +220,7 @@ fn run<R: Read + Send, W: WritingBuffer + Send>(
         .build_global()?;
 
     let meta_buffer = meta_buffer.map(Mutex::new);
+    let gff_buffer = gff_buffer.map(Mutex::new);
     let dna_buffer = dna_buffer.map(Mutex::new);
     let aa_buffer = aa_buffer.map(Mutex::new);
 
@@ -205,6 +229,7 @@ fn run<R: Read + Send, W: WritingBuffer + Send>(
         .par_bridge()
         .map(|(index, recordvec)| {
             let mut metabuf = Vec::new();
+            let mut gffbuf = Vec::new();
             let mut dnabuf = Vec::new();
             let mut aabuf = Vec::new();
             for record in recordvec {
@@ -221,6 +246,9 @@ fn run<R: Read + Send, W: WritingBuffer + Send>(
                 if meta_buffer.is_some() {
                     read_prediction.meta(&mut metabuf)?;
                 }
+                if gff_buffer.is_some() {
+                    read_prediction.gff(&mut gffbuf)?;
+                }
                 if dna_buffer.is_some() {
                     read_prediction.dna(&mut dnabuf, formatted)?;
                 }
@@ -230,6 +258,9 @@ fn run<R: Read + Send, W: WritingBuffer + Send>(
             }
             if let Some(buffer) = &meta_buffer {
                 buffer.lock().unwrap().add(index, metabuf)?;
+            }
+            if let Some(buffer) = &gff_buffer {
+                buffer.lock().unwrap().add(index, gffbuf)?;
             }
             if let Some(buffer) = &dna_buffer {
                 buffer.lock().unwrap().add(index, dnabuf)?;
