@@ -1,3 +1,5 @@
+use std::cmp::Ordering::{Equal, Greater, Less};
+
 use strum::EnumCount;
 use strum::IntoEnumIterator;
 
@@ -14,7 +16,7 @@ pub fn viterbi(
 ) -> gene::ReadPrediction {
     let (alpha, path) = forward(global, local, &seq, whole_genome);
     let vpath = backtrack(&alpha, path);
-    build_genes(&local, head, seq, whole_genome, vpath, alpha)
+    build_genes(head, seq, whole_genome, vpath, alpha)
 }
 
 pub fn forward(
@@ -356,7 +358,7 @@ pub fn forward(
                         local.tr_e[i + 60 - t][trinucleotide(seq.get(i..).unwrap()).unwrap_or(0)];
                 }
                 if t < 60 {
-                    start_freq *= 58.0 / (t - 3 + 1) as f64
+                    start_freq *= 58.0 / t.saturating_sub(2) as f64
                 }
                 modify_border_dist(&mut alpha[t + 2][hmm::State::E], &local.dist_e, start_freq);
             }
@@ -567,7 +569,6 @@ fn backtrack(
 }
 
 fn build_genes(
-    local: &hmm::Local,
     head: Vec<u8>,
     seq: Vec<Nuc>,
     whole_genome: bool,
@@ -645,10 +646,37 @@ fn build_genes(
                 end_t = temp_t;
             }
 
+            if whole_genome {
+                // gene must have a start and stop codon; pick the best score nearby
+                if codon_start == 1 {
+                    extend(
+                        &mut dna,
+                        &mut dna_start_t,
+                        &mut end_t,
+                        true,
+                        [[A, T, G], [G, T, G], [T, T, G]],
+                        [[T, A, A], [T, A, G], [T, G, A]],
+                        &seq,
+                        &alpha,
+                        &vpath,
+                    );
+                } else if codon_start == -1 {
+                    extend(
+                        &mut dna,
+                        &mut dna_start_t,
+                        &mut end_t,
+                        false,
+                        [[T, T, A], [C, T, A], [T, C, A]],
+                        [[C, A, T], [C, A, C], [C, A, A]],
+                        &seq,
+                        &alpha,
+                        &vpath,
+                    );
+                }
+            }
+
             if dna.len() > gene_len {
-                let final_score = (alpha[end_t - 4][vpath[end_t - 4]]
-                    - alpha[start_t as usize + 2][vpath[start_t as usize + 2]])
-                    / (end_t - start_t as usize - 5) as f64;
+                let final_score = score(start_t as usize, end_t, &alpha, &vpath);
                 let mut frame = start_orf % 3;
                 if frame == 0 {
                     frame = 3
@@ -657,39 +685,6 @@ fn build_genes(
                 if codon_start == 1 {
                     if start_t == dna_start_t as isize - 3 {
                         dna_start_t -= 3;
-                    }
-
-                    if whole_genome {
-                        // add refinement of the start codons here
-                        let start_old = start_t as usize;
-                        let mut codon = &seq[start_old..start_old + 3];
-                        let mut s = 0;
-                        // find the optimal start codon within 30bp up- and downstream of start codon
-                        let mut e_save = 0.0;
-                        let mut s_save = 0;
-                        while !(codon != [T, A, A] || codon != [T, A, G] || codon != [T, G, A])
-                            && start_old >= 1 + s + 35
-                        {
-                            if codon != [A, T, G] || codon != [G, T, G] || codon != [T, T, G] {
-                                let utr = &seq[start_old - 1 - s - 30..start_old - 1 - s - 30 + 63];
-                                let mut freq_sum = 0.0;
-                                for j in 0..utr.len() - 2 {
-                                    freq_sum -= local.tr_s[j]
-                                        [trinucleotide(utr.get(j..).unwrap()).unwrap_or(0)];
-                                }
-                                if s == 0 {
-                                    e_save = freq_sum;
-                                    s_save = 0;
-                                } else if freq_sum < e_save {
-                                    e_save = freq_sum;
-                                    s_save = -(s as isize); // posivite chain, upstream s_save = -1 * 3
-                                }
-                            }
-                            s += 3;
-                            codon = &seq[start_old - 1 - s..start_old - 1 - s + 3];
-
-                            dna_start_t += s_save as usize;
-                        }
                     }
 
                     read_prediction.genes.push(gene::Gene {
@@ -704,38 +699,6 @@ fn build_genes(
                         deleted: delete.clone(),
                     });
                 } else if codon_start == -1 {
-                    if whole_genome {
-                        // add refinement of the start codons here
-                        // l 946
-                        let end_old = end_t;
-                        let mut codon = &seq[end_t - 1 - 2..end_t];
-                        let mut s = 0;
-                        // find the optimal start codon within 30bp up- and downstream of start codon
-                        let mut e_save = 0.0;
-                        let mut s_save = 0;
-                        while !(codon != [T, A, A] || codon != [T, A, G] || codon != [T, G, A])
-                            && end_old - 2 + s + 35 < seq.len()
-                        {
-                            if codon != [A, T, G] || codon != [G, T, G] || codon != [T, T, G] {
-                                let utr = &seq[end_old - 1 - 2 + s - 30..end_old + s + 30];
-                                let mut freq_sum = 0.0;
-                                for j in 0..utr.len() - 2 {
-                                    // TODO stop1? (their note)
-                                    freq_sum -= local.tr_e1[j]
-                                        [trinucleotide(utr.get(j..).unwrap()).unwrap_or(0)];
-                                }
-                                if s == 0 || freq_sum < e_save {
-                                    e_save = freq_sum;
-                                    s_save = s; // negative chain, s_save = s
-                                }
-                            }
-                            s += 3;
-                            codon = &seq[end_old - 1 - 2 + s..end_old];
-                        }
-
-                        end_t = end_old + s_save;
-                    }
-
                     read_prediction.genes.push(gene::Gene {
                         start: dna_start_t_withstop,
                         metastart: dna_start_t,
@@ -1003,4 +966,128 @@ fn modify_border_dist(cell: &mut f64, values: &[f64], start_freq: f64) {
     let r_kd =
         values[5] * (-1.0 * (start_freq - values[4]).powi(2) / (values[3]).powi(2) / 2.0).exp();
     *cell -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
+}
+
+fn extend(
+    dna: &mut Vec<Nuc>,
+    left: &mut usize,
+    right: &mut usize,
+    forward: bool,
+    startcodons: [[Nuc; 3]; 3],
+    stopcodons: [[Nuc; 3]; 3],
+    seq: &[Nuc],
+    alpha: &[[f64; 29]],
+    vpath: &[hmm::State],
+) {
+    if forward {
+        let mut c = (*left + 6).max(right.saturating_sub(30)); // stop candidate 1-based
+        while c < (*right + 198).min(seq.len() - 1)
+            && !stopcodons.contains(&[seq[c - 1], seq[c], seq[c + 1]])
+        {
+            c += 3;
+        }
+        if c < (*right + 198).min(seq.len() - 1) {
+            c += 3; // include stop codon
+            match c.cmp(right) {
+                Less => {
+                    dna.truncate(dna.len() + c - *right);
+                }
+                Equal => {}
+                Greater => {
+                    dna.extend(&seq[*right - 1..c - 1]);
+                }
+            }
+            *right = c;
+        }
+
+        let mut starts = Vec::new();
+        let mut c = right.saturating_sub(6).min(*left + 30); // start candidate 1-based
+        while c >= 3
+            && c > left.saturating_sub(198)
+            && !stopcodons.contains(&[seq[c - 1], seq[c], seq[c + 1]])
+        {
+            if startcodons.contains(&[seq[c - 1], seq[c], seq[c + 1]]) {
+                starts.push(c);
+            }
+            c -= 3;
+        }
+
+        let mut startc = *left;
+        let mut maxscore = score(*left, *right, alpha, vpath);
+        for s in starts.into_iter() {
+            let nscore = score(s, *right, alpha, vpath);
+            if f64::INFINITY > nscore && nscore > maxscore {
+                startc = s;
+                maxscore = nscore;
+            }
+        }
+        match startc.cmp(left) {
+            Less => {
+                dna.splice(0..0, seq[startc - 1..*left - 1].iter().cloned());
+            }
+            Equal => {}
+            Greater => {
+                dna.drain(0..startc - *left);
+            }
+        }
+        *left = startc;
+    } else {
+        let mut c = right.saturating_sub(6).min(*left + 30); // stop candidate 1-based
+        while c >= 3
+            && c > left.saturating_sub(198)
+            && !stopcodons.contains(&[seq[c - 1], seq[c], seq[c + 1]])
+        {
+            c -= 3;
+        }
+        if c >= 3 && c > left.saturating_sub(198) {
+            c -= 3; // include stop codon
+            match c.cmp(left) {
+                Less => {
+                    dna.splice(0..0, seq[c - 1..*left - 1].iter().cloned());
+                }
+                Equal => {}
+                Greater => {
+                    dna.drain(0..c - *left);
+                }
+            }
+            *left = c;
+        }
+
+        let mut starts = Vec::new();
+        let mut c = (*left + 6).max(right.saturating_sub(30)); // start candidate 1-based
+        while c < (*right + 198).min(seq.len() - 1)
+            && !stopcodons.contains(&[seq[c - 1], seq[c], seq[c + 1]])
+        {
+            if startcodons.contains(&[seq[c - 1], seq[c], seq[c + 1]]) {
+                starts.push(c);
+            }
+            c += 3;
+        }
+
+        let mut startc = *right;
+        let mut maxscore = score(*left, *right, alpha, vpath);
+        for s in starts.into_iter() {
+            let nscore = score(*left, s, alpha, vpath);
+            if f64::INFINITY > nscore && nscore > maxscore {
+                startc = s;
+                maxscore = nscore;
+            }
+        }
+        match startc.cmp(right) {
+            Less => {
+                dna.truncate(dna.len() + startc - *right);
+            }
+            Equal => {}
+            Greater => {
+                dna.extend(&seq[*right - 1..startc - 1]);
+            }
+        }
+        *right = startc;
+    }
+}
+
+fn score(start: usize, stop: usize, alpha: &[[f64; 29]], vpath: &[hmm::State]) -> f64 {
+    // start and stop are 1-based (-1), exclude start (+3) and stop (-3) codons
+    (alpha[stop - 4][vpath[stop - 4]] - alpha[start + 2][vpath[start + 2]])
+        / (stop - start - 5) as f64
 }
