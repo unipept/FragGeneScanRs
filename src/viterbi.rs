@@ -700,7 +700,11 @@ fn build_genes(
                     });
                 } else if codon_start == -1 {
                     read_prediction.genes.push(gene::Gene {
-                        start: dna_start_t_withstop,
+                        start: if whole_genome {
+                            dna_start_t
+                        } else {
+                            dna_start_t_withstop
+                        },
                         metastart: dna_start_t,
                         end: end_t,
                         frame: frame,
