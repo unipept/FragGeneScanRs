@@ -356,7 +356,7 @@ pub fn forward(
                         local.tr_e[i + 60 - t][trinucleotide(seq.get(i..).unwrap()).unwrap_or(0)];
                 }
                 if t < 60 {
-                    start_freq *= 58.0 / (t - 3 + 1) as f64
+                    start_freq *= 58.0 / (t.saturating_sub(3) + 1) as f64
                 }
                 modify_border_dist(&mut alpha[t + 2][hmm::State::E], &local.dist_e, start_freq);
             }
@@ -432,7 +432,7 @@ pub fn forward(
 
             if t < seq.len() - 2
                 && (seq[t] == A || seq[t] == G || seq[t] == T)
-                && seq[t + 1] == A
+                && seq[t + 1] == T
                 && seq[t + 2] == G
             {
                 alpha[t][hmm::State::S] = f64::INFINITY;
