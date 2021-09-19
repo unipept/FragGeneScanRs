@@ -694,7 +694,6 @@ fn build_genes(
 
                     read_prediction.genes.push(gene::Gene {
                         start: dna_start_t,
-                        metastart: dna_start_t,
                         end: end_t,
                         frame: frame,
                         score: final_score,
@@ -738,7 +737,6 @@ fn build_genes(
 
                     read_prediction.genes.push(gene::Gene {
                         start: dna_start_t_withstop,
-                        metastart: dna_start_t,
                         end: end_t,
                         frame: frame,
                         score: final_score,
