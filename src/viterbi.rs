@@ -33,7 +33,7 @@ pub fn forward(
 
     for _ in 0..seq.len() {
         alpha.push([0.0; hmm::State::COUNT]);
-        path.push([None; hmm::State::COUNT]);
+        path.push([Some(hmm::State::S); hmm::State::COUNT]);
     }
     alpha[0].copy_from_slice(&global.pi);
     for i in &mut alpha[0] {
