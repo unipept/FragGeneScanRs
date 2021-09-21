@@ -839,7 +839,7 @@ fn from_s_to_m(
     to: usize,
 ) {
     let temp_alpha = alpha[t - 1][hmm::State::S] - local.e_m[0][from2][to];
-    if temp_alpha < alpha[t][hmm::State::M1] {
+    if temp_alpha <= alpha[t][hmm::State::M1] {
         alpha[t][hmm::State::M1] = temp_alpha;
         path[t][hmm::State::M1] = Some(hmm::State::S);
     }
