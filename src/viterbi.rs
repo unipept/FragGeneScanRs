@@ -682,13 +682,13 @@ fn build_genes(
                                     s_save = 0;
                                 } else if freq_sum < e_save {
                                     e_save = freq_sum;
-                                    s_save = -(s as isize); // posivite chain, upstream s_save = -1 * 3
+                                    s_save = s; // posivite chain, upstream s_save = -1 * 3
                                 }
                             }
                             s += 3;
                             codon = &seq[start_old - 1 - s..start_old - 1 - s + 3];
                         }
-                        dna_start_t += s_save as usize;
+                        dna_start_t -= s_save;
                     }
 
                     read_prediction.genes.push(gene::Gene {
