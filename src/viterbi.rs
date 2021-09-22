@@ -616,7 +616,7 @@ fn build_genes(
             dna.push(seq[t]);
             dna_start_t_withstop = t + 1;
             dna_start_t = t + 1;
-            if vpath[t] == hmm::State::M1 || vpath[t] == hmm::State::M4r {
+            if vpath[t] == hmm::State::M1r || vpath[t] == hmm::State::M4r {
                 if t > 2 {
                     dna_start_t_withstop = t - 2;
                 }
