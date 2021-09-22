@@ -662,15 +662,15 @@ fn build_genes(
                     if whole_genome {
                         // add refinement of the start codons here
                         let start_old = start_t as usize;
-                        let mut codon = &seq[start_old..start_old + 3];
+                        let mut codon = &seq[start_old - 1..start_old + 2];
                         let mut s = 0;
                         // find the optimal start codon within 30bp up- and downstream of start codon
                         let mut e_save = 0.0;
                         let mut s_save = 0;
-                        while !(codon != [T, A, A] || codon != [T, A, G] || codon != [T, G, A])
+                        while !(codon == [T, A, A] || codon == [T, A, G] || codon == [T, G, A])
                             && start_old >= 1 + s + 35
                         {
-                            if codon != [A, T, G] || codon != [G, T, G] || codon != [T, T, G] {
+                            if codon == [A, T, G] || codon == [G, T, G] || codon == [T, T, G] {
                                 let utr = &seq[start_old - 1 - s - 30..start_old - 1 - s - 30 + 63];
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
@@ -687,9 +687,8 @@ fn build_genes(
                             }
                             s += 3;
                             codon = &seq[start_old - 1 - s..start_old - 1 - s + 3];
-
-                            dna_start_t += s_save as usize;
                         }
+                        dna_start_t += s_save as usize;
                     }
 
                     read_prediction.genes.push(gene::Gene {
@@ -712,10 +711,10 @@ fn build_genes(
                         // find the optimal start codon within 30bp up- and downstream of start codon
                         let mut e_save = 0.0;
                         let mut s_save = 0;
-                        while !(codon != [T, A, A] || codon != [T, A, G] || codon != [T, G, A])
+                        while !(codon == [T, T, A] || codon == [C, T, A] || codon == [T, C, A])
                             && end_old - 2 + s + 35 < seq.len()
                         {
-                            if codon != [A, T, G] || codon != [G, T, G] || codon != [T, T, G] {
+                            if codon == [C, A, T] || codon == [C, A, C] || codon == [C, A, A] {
                                 let utr = &seq[end_old - 1 - 2 + s - 30..end_old + s + 30];
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
@@ -729,7 +728,7 @@ fn build_genes(
                                 }
                             }
                             s += 3;
-                            codon = &seq[end_old - 1 - 2 + s..end_old];
+                            codon = &seq[end_old - 1 - 2 + s..end_old + s];
                         }
 
                         end_t = end_old + s_save;
