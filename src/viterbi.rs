@@ -619,6 +619,7 @@ fn build_genes(
             if vpath[t] == hmm::State::M1r || vpath[t] == hmm::State::M4r {
                 if t > 2 {
                     dna_start_t_withstop = t - 2;
+                    dna.splice(0..0, seq[t - 3..t].iter().cloned());
                 }
             }
 
@@ -657,6 +658,7 @@ fn build_genes(
                 if codon_start == 1 {
                     if start_t == dna_start_t as isize - 3 {
                         dna_start_t -= 3;
+                        dna.splice(0..0, seq[dna_start_t - 1..dna_start_t + 2].iter().cloned());
                     }
 
                     if whole_genome {
@@ -689,7 +691,18 @@ fn build_genes(
                             codon = &seq[start_old - 1 - s..start_old - 1 - s + 3];
                         }
                         dna_start_t -= s_save;
+                        dna.splice(
+                            0..0,
+                            seq[dna_start_t - 1..dna_start_t + s_save - 1]
+                                .iter()
+                                .cloned(),
+                        );
                     }
+
+                    // add final codon
+                    dna.push(seq[end_t - 3]);
+                    dna.push(seq[end_t - 2]);
+                    dna.push(seq[end_t - 1]);
 
                     read_prediction.genes.push(gene::Gene {
                         start: dna_start_t,
@@ -733,6 +746,11 @@ fn build_genes(
 
                         end_t = end_old + s_save;
                     }
+
+                    // add final codon
+                    dna.push(seq[end_t - 3]);
+                    dna.push(seq[end_t - 2]);
+                    dna.push(seq[end_t - 1]);
 
                     read_prediction.genes.push(gene::Gene {
                         start: dna_start_t_withstop,
