@@ -47,3 +47,27 @@ hyperfine 'FragGeneScan -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/
           'FragGeneScanRs -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGSrs -t complete -w 1' \
           'prodigal -i meta/evaluation/ena_data_20210917-1328.fasta -p meta -f gff -o meta/evaluation/prodigal.gff'
 ```
+
+```
+Benchmark #1: ./FragGeneScan -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS -t complete -w 1
+  Time (mean ± σ):      2.659 s ±  0.004 s    [User: 2.403 s, System: 0.250 s]
+  Range (min … max):    2.653 s …  2.664 s    20 runs
+
+Benchmark #2: FragGeneScanRs -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGSrs -t complete -w 1
+  Time (mean ± σ):      1.078 s ±  0.002 s    [User: 882.0 ms, System: 193.8 ms]
+  Range (min … max):    1.074 s …  1.080 s    20 runs
+
+Benchmark #3: ./prodigal -i meta/evaluation/ena_data_20210917-1328.fasta -p meta -f gff -o meta/evaluation/prodigal.gff
+  Time (mean ± σ):     40.209 s ±  0.070 s    [User: 40.132 s, System: 0.022 s]
+  Range (min … max):   40.076 s … 40.334 s    20 runs
+
+Benchmark #4: ./FGS+ -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS+ -t complete -w 1
+  Time (mean ± σ):     191.019 s ±  6.262 s    [User: 190.494 s, System: 0.313 s]
+  Range (min … max):   179.236 s … 200.262 s    20 runs
+
+Summary
+  'FragGeneScanRs -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGSrs -t complete -w 1' ran
+    2.47 ± 0.01 times faster than './FragGeneScan -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS -t complete -w 1'
+   37.30 ± 0.09 times faster than './prodigal -i meta/evaluation/ena_data_20210917-1328.fasta -p meta -f gff -o meta/evaluation/prodigal.gff'
+  177.21 ± 5.82 times faster than './FGS+ -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS+ -t complete -w 1'
+```
