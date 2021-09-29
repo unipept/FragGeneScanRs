@@ -54,9 +54,22 @@ def rates(read_lengths, annotations, predictions):
 		cl = l
 	return rates
 
-row = '{:<15} {:>10} {:>10} {:>10} {:>10} {:>10.4}{:>10.4}{:>10.4}{:>10.4}{:>10.4}'
-print(row.format('tool', 'TP', 'FP', 'TN', 'FN', 'precision', 'sensitivity', 'specificity', 'NPV', 'MCC'))
+body = '{:<10}{:>8.2%}{:>8.2%}{:>8.2%}{:>8.2%}{:>8.2%}{:>8.2%}{:>8.2%}{:>8.2%}{:>8.2%}'
+head = '{:<10}{:>8.4s}{:>8.4s}{:>8.4s}{:>8.4s}{:>8.4s}{:>8.4s}{:>8.4s}{:>8.4s}{:>8.4s}'
+print(head.format('tool', 'TP', 'FP', 'TN', 'FN', 'precision', 'sensitivity', 'specificity', 'NPV', 'MCC'))
 for tool in ['FGS', 'FGS+', 'prodigal', 'FGSrs']:
 	r = rates('readlengths.csv', 'annotations.csv', f'{tool}.csv')
 	tp, fp, tn, fn = r['tp'], r['fp'], r['tn'], r['fn']
-	print(row.format(tool, tp, fp, tn, fn, 100 * tp / (tp + fp), 100 * tp / (tp + fn), 100 * tn / (tn + fp), 100 * tn / (tn + fn), 100 * (tp * tn - fp * fn) / ((tp + fp)*(tp + fn)*(tn + fp)*(tn + fn))**0.5))
+	t = tp + fp + tn + fn
+	print(body.format(
+		tool,
+		tp / t,
+		fp / t,
+		tn / t,
+		fn / t,
+		tp / (tp + fp),
+		tp / (tp + fn),
+		tn / (tn + fp),
+		tn / (tn + fn),
+		(tp * tn - fp * fn) / ((tp + fp)*(tp + fn)*(tn + fp)*(tn + fn))**0.5
+	))

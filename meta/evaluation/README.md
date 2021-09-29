@@ -28,7 +28,7 @@ sed -n 's/^>ENA|\([^|]*\)|.*_\([0-9]*\)_\([0-9]*\)_\([+-]\)$/\1,\2,\3,\4/p' FGS+
 
 ```sh
 FragGeneScanRs -s ena_data_20210917-1328.fasta -g FGSrs.gff -t complete -w 1
-prodigal -i ena_data_20210917-1328.fasta -p meta -f gff -o prodigal.gff
+prodigal -i ena_data_20210917-1328.fasta -f gff -o prodigal.gff
 grep -v '^#' FGSrs.gff | tr '\t' ',' | cut -d, -f1,4,5,7 | sed 's/ENA|//;s/|[^,]*,/,/' > FGSrs.csv
 grep -v '^#' prodigal.gff | tr '\t' ',' | cut -d, -f1,4,5,7 | sed 's/ENA|//;s/|[^,]*,/,/' > prodigal.csv
 ```
@@ -45,29 +45,23 @@ Run in the FGS or FGS+ directory (for the training files).
 hyperfine 'FragGeneScan -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS -t complete -w 1' \
           'FGS+ -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS+ -t complete -w 1' \
           'FragGeneScanRs -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGSrs -t complete -w 1' \
-          'prodigal -i meta/evaluation/ena_data_20210917-1328.fasta -p meta -f gff -o meta/evaluation/prodigal.gff'
+          'prodigal -i meta/evaluation/ena_data_20210917-1328.fasta -f gff -o meta/evaluation/prodigal.gff'
 ```
 
 ```
 Benchmark #1: ./FragGeneScan -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS -t complete -w 1
-  Time (mean ± σ):      2.659 s ±  0.004 s    [User: 2.403 s, System: 0.250 s]
-  Range (min … max):    2.653 s …  2.664 s    20 runs
+  Time (mean ± σ):      3.797 s ±  0.006 s    [User: 3.413 s, System: 0.348 s]
+  Range (min … max):    3.792 s …  3.807 s    5 runs
 
-Benchmark #2: FragGeneScanRs -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGSrs -t complete -w 1
-  Time (mean ± σ):      1.078 s ±  0.002 s    [User: 882.0 ms, System: 193.8 ms]
-  Range (min … max):    1.074 s …  1.080 s    20 runs
+Benchmark #2: ./FGS+ -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS+ -t complete -w 1
+  Time (mean ± σ):     369.979 s ± 25.774 s    [User: 367.679 s, System: 0.517 s]
+  Range (min … max):   353.713 s … 415.649 s    5 runs
 
-Benchmark #3: ./prodigal -i meta/evaluation/ena_data_20210917-1328.fasta -p meta -f gff -o meta/evaluation/prodigal.gff
-  Time (mean ± σ):     40.209 s ±  0.070 s    [User: 40.132 s, System: 0.022 s]
-  Range (min … max):   40.076 s … 40.334 s    20 runs
+Benchmark #1: FragGeneScanRs -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGSrs -t complete -w 1
+  Time (mean ± σ):      1.703 s ±  0.014 s    [User: 1.395 s, System: 0.275 s]
+  Range (min … max):    1.684 s …  1.719 s    5 runs
 
-Benchmark #4: ./FGS+ -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS+ -t complete -w 1
-  Time (mean ± σ):     191.019 s ±  6.262 s    [User: 190.494 s, System: 0.313 s]
-  Range (min … max):   179.236 s … 200.262 s    20 runs
-
-Summary
-  'FragGeneScanRs -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGSrs -t complete -w 1' ran
-    2.47 ± 0.01 times faster than './FragGeneScan -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS -t complete -w 1'
-   37.30 ± 0.09 times faster than './prodigal -i meta/evaluation/ena_data_20210917-1328.fasta -p meta -f gff -o meta/evaluation/prodigal.gff'
-  177.21 ± 5.82 times faster than './FGS+ -s meta/evaluation/ena_data_20210917-1328.fasta -o meta/evaluation/FGS+ -t complete -w 1'
+Benchmark #4: prodigal -i meta/evaluation/ena_data_20210917-1328.fasta -f gff -o meta/evaluation/prodigal.gff
+  Time (mean ± σ):      8.533 s ±  0.038 s    [User: 8.453 s, System: 0.047 s]
+  Range (min … max):    8.493 s …  8.573 s    5 runs
 ```
