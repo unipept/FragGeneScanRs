@@ -74,10 +74,10 @@ where:
 
 ### Additional options
 
-* `-m meta_file`, `-n nucleotide_file` and `-a aa_file` can be used to
-  write output to specific files, instead of having the program create
-  filenames with predetermined extentions. These take precedence over
-  the `-o` option.
+* `-m meta_file`, `-n nucleotide_file`, `-a aa_file` and `-g gff_file`
+  can be used to write output to specific files, instead of having the
+  program create filenames with predetermined extentions. These take
+  precedence over the `-o` option.
 
 * Leaving out the `-o` option or using the name `stdout` causes
   FragGeneScanRs to only write the predicted proteins to standard output.
@@ -97,7 +97,7 @@ where:
 The complete list of options will be printed when running
 `FragGeneScanRs --help`.
 
-## Execution time
+## Execution time (version 1.0.0)
 
 Benchmarks were done using the `meta/benchmark.sh` script on a 16-core
 Intel(R) Xeon(R) CPU E5-2650 v2 @ 2.60GHz with 195GB RAM. The datasets
@@ -165,7 +165,7 @@ The commands used here are:
 ./FragGeneScanRs -t 454_10 -s example/NC_000913-454.fna -o stdout -w 0 > /dev/null
 ```
 
-## Memory usage
+## Memory usage (version 1.0.0)
 
 The figure below shows the memory footprint for multithreaded execution
 of FGS, FGS+ and FGSrs on long reads (1328 bp). Total memory footprint

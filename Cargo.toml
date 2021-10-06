@@ -1,6 +1,6 @@
 [package]
 name = "frag_gene_scan_rs"
-version = "1.0.1"
+version = "1.1.0"
 authors = ["Felix Van der Jeugt <felix.vanderjeugt@ugent.be>"]
 edition = "2018"
 license = "GPL-3.0-or-later"
