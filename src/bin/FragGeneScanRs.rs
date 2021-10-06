@@ -12,7 +12,7 @@ extern crate anyhow;
 use anyhow::Result;
 
 extern crate clap;
-use clap::{App, Arg};
+use clap::{crate_version, App, Arg};
 
 extern crate seq_io;
 use seq_io::fasta;
@@ -28,7 +28,7 @@ use frag_gene_scan_rs::viterbi::viterbi;
 
 fn main() -> Result<()> {
     let matches = App::new("FragGeneScanRs")
-        .version("0.0.1")
+        .version(crate_version!())
         .author("Felix Van der Jeugt <felix.vanderjeugt@ugent.be>")
         .about("Scalable high-throughput short-read open reading frame prediction.")
         .arg(Arg::with_name("seq-file")
