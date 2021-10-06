@@ -33,7 +33,7 @@ pub fn forward(
 
     for _ in 0..seq.len() {
         alpha.push([0.0; hmm::State::COUNT]);
-        path.push([None; hmm::State::COUNT]);
+        path.push([Some(hmm::State::S); hmm::State::COUNT]);
     }
     alpha[0].copy_from_slice(&global.pi);
     for i in &mut alpha[0] {
@@ -356,7 +356,7 @@ pub fn forward(
                         local.tr_e[i + 60 - t][trinucleotide(seq.get(i..).unwrap()).unwrap_or(0)];
                 }
                 if t < 60 {
-                    start_freq *= 58.0 / (t - 3 + 1) as f64
+                    start_freq *= 58.0 / (t.saturating_sub(3) + 1) as f64
                 }
                 modify_border_dist(&mut alpha[t + 2][hmm::State::E], &local.dist_e, start_freq);
             }
@@ -432,7 +432,7 @@ pub fn forward(
 
             if t < seq.len() - 2
                 && (seq[t] == A || seq[t] == G || seq[t] == T)
-                && seq[t + 1] == A
+                && seq[t + 1] == T
                 && seq[t + 2] == G
             {
                 alpha[t][hmm::State::S] = f64::INFINITY;
@@ -616,9 +616,10 @@ fn build_genes(
             dna.push(seq[t]);
             dna_start_t_withstop = t + 1;
             dna_start_t = t + 1;
-            if vpath[t] == hmm::State::M1 || vpath[t] == hmm::State::M4r {
+            if vpath[t] == hmm::State::M1r || vpath[t] == hmm::State::M4r {
                 if t > 2 {
                     dna_start_t_withstop = t - 2;
+                    dna.splice(0..0, seq[t - 3..t].iter().cloned());
                 }
             }
 
@@ -657,20 +658,21 @@ fn build_genes(
                 if codon_start == 1 {
                     if start_t == dna_start_t as isize - 3 {
                         dna_start_t -= 3;
+                        dna.splice(0..0, seq[dna_start_t - 1..dna_start_t + 2].iter().cloned());
                     }
 
                     if whole_genome {
                         // add refinement of the start codons here
                         let start_old = start_t as usize;
-                        let mut codon = &seq[start_old..start_old + 3];
+                        let mut codon = &seq[start_old - 1..start_old + 2];
                         let mut s = 0;
                         // find the optimal start codon within 30bp up- and downstream of start codon
                         let mut e_save = 0.0;
                         let mut s_save = 0;
-                        while !(codon != [T, A, A] || codon != [T, A, G] || codon != [T, G, A])
+                        while !(codon == [T, A, A] || codon == [T, A, G] || codon == [T, G, A])
                             && start_old >= 1 + s + 35
                         {
-                            if codon != [A, T, G] || codon != [G, T, G] || codon != [T, T, G] {
+                            if codon == [A, T, G] || codon == [G, T, G] || codon == [T, T, G] {
                                 let utr = &seq[start_old - 1 - s - 30..start_old - 1 - s - 30 + 63];
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
@@ -682,19 +684,28 @@ fn build_genes(
                                     s_save = 0;
                                 } else if freq_sum < e_save {
                                     e_save = freq_sum;
-                                    s_save = -(s as isize); // posivite chain, upstream s_save = -1 * 3
+                                    s_save = s; // posivite chain, upstream s_save = -1 * 3
                                 }
                             }
                             s += 3;
                             codon = &seq[start_old - 1 - s..start_old - 1 - s + 3];
-
-                            dna_start_t += s_save as usize;
                         }
+                        dna_start_t -= s_save;
+                        dna.splice(
+                            0..0,
+                            seq[dna_start_t - 1..dna_start_t + s_save - 1]
+                                .iter()
+                                .cloned(),
+                        );
                     }
+
+                    // add final codon
+                    dna.push(seq[end_t - 3]);
+                    dna.push(seq[end_t - 2]);
+                    dna.push(seq[end_t - 1]);
 
                     read_prediction.genes.push(gene::Gene {
                         start: dna_start_t,
-                        metastart: dna_start_t,
                         end: end_t,
                         frame: frame,
                         score: final_score,
@@ -713,10 +724,10 @@ fn build_genes(
                         // find the optimal start codon within 30bp up- and downstream of start codon
                         let mut e_save = 0.0;
                         let mut s_save = 0;
-                        while !(codon != [T, A, A] || codon != [T, A, G] || codon != [T, G, A])
+                        while !(codon == [T, T, A] || codon == [C, T, A] || codon == [T, C, A])
                             && end_old - 2 + s + 35 < seq.len()
                         {
-                            if codon != [A, T, G] || codon != [G, T, G] || codon != [T, T, G] {
+                            if codon == [C, A, T] || codon == [C, A, C] || codon == [C, A, A] {
                                 let utr = &seq[end_old - 1 - 2 + s - 30..end_old + s + 30];
                                 let mut freq_sum = 0.0;
                                 for j in 0..utr.len() - 2 {
@@ -730,15 +741,19 @@ fn build_genes(
                                 }
                             }
                             s += 3;
-                            codon = &seq[end_old - 1 - 2 + s..end_old];
+                            codon = &seq[end_old - 1 - 2 + s..end_old + s];
                         }
 
                         end_t = end_old + s_save;
                     }
 
+                    // add final codon
+                    dna.push(seq[end_t - 3]);
+                    dna.push(seq[end_t - 2]);
+                    dna.push(seq[end_t - 1]);
+
                     read_prediction.genes.push(gene::Gene {
                         start: dna_start_t_withstop,
-                        metastart: dna_start_t,
                         end: end_t,
                         frame: frame,
                         score: final_score,
@@ -841,7 +856,7 @@ fn from_s_to_m(
     to: usize,
 ) {
     let temp_alpha = alpha[t - 1][hmm::State::S] - local.e_m[0][from2][to];
-    if temp_alpha < alpha[t][hmm::State::M1] {
+    if temp_alpha <= alpha[t][hmm::State::M1] {
         alpha[t][hmm::State::M1] = temp_alpha;
         path[t][hmm::State::M1] = Some(hmm::State::S);
     }

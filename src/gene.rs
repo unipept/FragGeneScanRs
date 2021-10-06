@@ -74,7 +74,6 @@ impl ReadPrediction {
 
 pub struct Gene {
     pub start: usize,
-    pub metastart: usize,
     pub end: usize,
     pub frame: usize,
     pub score: f64,
@@ -89,7 +88,7 @@ impl Gene {
         buf.append(
             &mut format!(
                 "{}\t{}\t{}\t{}\t{:.6}\tI:{}\tD:{}\n",
-                self.metastart,
+                self.start,
                 self.end,
                 if self.forward_strand { '+' } else { '-' },
                 self.frame,
@@ -112,12 +111,12 @@ impl Gene {
             &mut format!(
                 "{}\tFGS\tCDS\t{}\t{}\t.\t{}\t{}\tID={}_{}_{}_{};product=predicted protein\n",
                 head,
-                self.metastart,
+                self.start,
                 self.end,
                 if self.forward_strand { '+' } else { '-' },
                 self.frame - 1,
                 head,
-                self.metastart,
+                self.start,
                 self.end,
                 if self.forward_strand { '+' } else { '-' }
             )

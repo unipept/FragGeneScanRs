@@ -1,1 +1,8 @@
 /target
+FragGeneScan
+FGS+
+prodigal
+*.ffn
+*.faa
+*.gff
+*.csv

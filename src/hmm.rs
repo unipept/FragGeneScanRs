@@ -149,8 +149,8 @@ pub fn get_train_from_file(
     read_noncoding(&mut locals, train_dir.join("noncoding"))?;
     read_start(&mut locals, train_dir.join("start"))?;
     read_stop(&mut locals, train_dir.join("stop"))?;
-    read_start1(&mut locals, train_dir.join("start1"))?;
-    read_stop1(&mut locals, train_dir.join("stop1"))?;
+    read_start1(&mut locals, train_dir.join("stop1"))?; // keep FGS naming scheme
+    read_stop1(&mut locals, train_dir.join("start1"))?; // keep FGS naming scheme
     read_pwm(&mut locals, train_dir.join("pwm"))?;
 
     Ok((global, locals))
