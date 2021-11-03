@@ -2,25 +2,33 @@
 
 ## Installation
 
-### From release
+### From release (fastest)
 
 Download the build of the [latest release][release] for your platform
-and extract it somewhere in your path.
+and extract it somewhere in your path, for instance to `~/.local/bin` or
+`/usr/bin`.
 
 [release]: https://github.com/unipept/FragGeneScanRs/releases/latest
 
-### From source
+### From source (from crates.io release)
 
 FragGeneScanRs is written in Rust, so first head over to their
 [installation instructions][Rust]. Afterwards, you can install the crate
-from [crates.io][crate] with `cargo install frag_gene_scan_rs`, or you
-can install from here. Clone this repository or download the source code
-of the [latest release][release]. In this directory, run `cargo install
---path .` to install. The installation progress may prompt you to add a
-directory to your path so you can easily execute it.
+from [crates.io][crate] with `cargo install frag_gene_scan_rs` The
+installation progress may prompt you to add a directory to your path so
+you can easily execute it.
 
 [crate]: https://crates.io/crates/frag_gene_scan_rs
 [Rust]: https://www.rust-lang.org/tools/install
+
+### From source (from GitHub)
+
+To compile from the sources found on GitHub, you will need to install
+[installation instructions][Rust], too. Afterwards, clone this
+repository or download the source code of the [latest release][release].
+In this directory, run `cargo install --path .` to compile and install.
+The installation progress may prompt you to add a directory to your path
+so you can easily execute it.
 
 ## Usage
 
