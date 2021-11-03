@@ -7,7 +7,7 @@ pub const ACGT: usize = 4;
 pub const BI_ACGT: usize = 4 * 4;
 pub const TRI_ACGT: usize = 4 * 4 * 4;
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Nuc {
     A,
     C,
@@ -72,11 +72,16 @@ impl Nuc {
 impl From<u8> for Nuc {
     fn from(nt: u8) -> Nuc {
         match nt {
-            b'A' | b'a' => Nuc::A,
-            b'C' | b'c' => Nuc::C,
-            b'G' | b'g' => Nuc::G,
-            b'T' | b't' => Nuc::T,
+            b'A' => Nuc::A,
+            b'C' => Nuc::C,
+            b'G' => Nuc::G,
+            b'T' => Nuc::T,
+            b'a' => Nuc::Ai,
+            b'c' => Nuc::Ci,
+            b'g' => Nuc::Gi,
+            b't' => Nuc::Ti,
             b'x' => Nuc::Xi,
+            b'n' => Nuc::Ni,
             _ => Nuc::N,
         }
     }
@@ -98,6 +103,10 @@ impl From<Nuc> for u8 {
             Nuc::Xi => b'N',
         }
     }
+}
+
+pub fn dna(seq: &str) -> Vec<Nuc> {
+    seq.as_bytes().into_iter().copied().map(Nuc::from).collect()
 }
 
 pub const CODON_CODE: [u8; TRI_ACGT] = [

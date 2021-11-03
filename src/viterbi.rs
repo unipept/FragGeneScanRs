@@ -2,19 +2,20 @@ use strum::EnumCount;
 use strum::IntoEnumIterator;
 
 use crate::dna::Nuc::{A, C, G, T};
-use crate::dna::{trinucleotide, Nuc};
+use crate::dna::{count_cg_content, trinucleotide, Nuc};
 use crate::{gene, hmm};
 
 pub fn viterbi(
     global: &hmm::Global,
-    local: &hmm::Local,
+    locals: &Vec<hmm::Local>,
     head: Vec<u8>,
     seq: Vec<Nuc>,
     whole_genome: bool,
 ) -> gene::ReadPrediction {
+    let local = &locals[count_cg_content(&seq)];
     let (alpha, path) = forward(global, local, &seq, whole_genome);
     let vpath = backtrack(&alpha, path);
-    build_genes(&local, head, seq, whole_genome, vpath, alpha)
+    build_genes(local, head, seq, whole_genome, vpath, alpha)
 }
 
 pub fn forward(
@@ -646,7 +647,14 @@ fn build_genes(
                 end_t = temp_t;
             }
 
-            if dna.len() > gene_len {
+            if dna.len()
+                > gene_len
+                    + if whole_genome && codon_start == -1 {
+                        3
+                    } else {
+                        0
+                    }
+            {
                 let final_score = (alpha[end_t - 4][vpath[end_t - 4]]
                     - alpha[start_t as usize + 2][vpath[start_t as usize + 2]])
                     / (end_t - start_t as usize - 5) as f64;
@@ -697,12 +705,12 @@ fn build_genes(
                                 .iter()
                                 .cloned(),
                         );
-                    }
 
-                    // add final codon
-                    dna.push(seq[end_t - 3]);
-                    dna.push(seq[end_t - 2]);
-                    dna.push(seq[end_t - 1]);
+                        // add final codon
+                        dna.push(seq[end_t - 3]);
+                        dna.push(seq[end_t - 2]);
+                        dna.push(seq[end_t - 1]);
+                    }
 
                     read_prediction.genes.push(gene::Gene {
                         start: dna_start_t,
@@ -745,12 +753,12 @@ fn build_genes(
                         }
 
                         end_t = end_old + s_save;
-                    }
 
-                    // add final codon
-                    dna.push(seq[end_t - 3]);
-                    dna.push(seq[end_t - 2]);
-                    dna.push(seq[end_t - 1]);
+                        // add final codon
+                        dna.push(seq[end_t - 3]);
+                        dna.push(seq[end_t - 2]);
+                        dna.push(seq[end_t - 1]);
+                    }
 
                     read_prediction.genes.push(gene::Gene {
                         start: dna_start_t_withstop,
@@ -767,6 +775,7 @@ fn build_genes(
 
             codon_start = 0;
             start_t = -1;
+            dna.clear();
         } else if codon_start != 0
             && ((vpath[t] >= hmm::State::M1
                 && vpath[t] <= hmm::State::M6
@@ -1018,4 +1027,85 @@ fn modify_border_dist(cell: &mut f64, values: &[f64], start_freq: f64) {
     let r_kd =
         values[5] * (-1.0 * (start_freq - values[4]).powi(2) / (values[3]).powi(2) / 2.0).exp();
     *cell -= (h_kd / (h_kd + r_kd)).max(0.01).min(0.99).ln();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    use crate::dna::dna;
+
+    fn test_viterbi(file: &str, seq: Vec<Nuc>, genes: Vec<gene::Gene>) {
+        let (global, locals) =
+            hmm::get_train_from_file(PathBuf::from("train"), PathBuf::from(file)).unwrap();
+        let received = viterbi(&global, &locals, vec![], seq, false);
+        let expected = gene::ReadPrediction {
+            head: vec![],
+            genes: genes,
+        };
+        assert_eq!(expected, received);
+        // assert_eq!(expected, received)
+        // assert_matches!(received, pattern)
+    }
+
+    #[test]
+    fn test_forward_read() {
+        test_viterbi(
+            "454_10",
+            dna("TGTTCGCTGGCGGTGCTTTAGGGGGAGATGCGCAGAATGTCTCAGCCCTGCAAGGGGGTACTCTAGACATGGTGGTATTGAATTCCGGTATCTTAGCTTCGCAAGTGAAAGAGTTTGCCGTGTATGACTTTCCGTTCATGTTCAATAACTCTGAAGAAGCCGATAAAGTCGTCGACGGTGAATTTGGTAAGGCTTTGCACGCGAAATTAGAAGAGAAAGGTATTATCGGTTTAGCCTATTGGGAGTTGGGCTTCCGCGATATGACTAATAGCAAACACCCTATCACTAAGGTCGAGGATATTAAAGGTCTGAAACTGCGTGTTATCCC"),
+            vec![
+                gene::Gene {
+                    start: 3,
+                    end: 326,
+                    frame: 3,
+                    score: 1.310173669505397,
+                    dna: dna("TTCGCTGGCGGTGCTTTAGGGGGAGATGCGCAGAATGTCTCAGCCCTGCAAGGGGGTACTCTAGACATGGTGGTATTGAATTCCGGTATCTTAGCTTCGCAAGTGAAAGAGTTTGCCGTGTATGACTTTCCGTTCATGTTCAATAACTCTGAAGAAGCCGATAAAGTCGTCGACGGTGAATTTGGTAAGGCTTTGCACGCGAAATTAGAAGAGAAAGGTATTATCGGTTTAGCCTATTGGGAGTTGGGCTTCCGCGATATGACTAATAGCAAACACCCTATCACTAAGGTCGAGGATATTAAAGGTCTGAAACTGCGTGTTATC"),
+                    forward_strand: true,
+                    inserted: vec![],
+                    deleted: vec![],
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_reverse_read() {
+        test_viterbi(
+            "454_10",
+            dna("GGGATAACACGCAGTTTCAGACCTTTAATATCCTCGACCTTAGTGATAGGGTGTTTGCTATTAGTCATATCGCGGAAGCCCAACTCCCAATAGGCTAAACCGATAATACCTTTCTCTTCTAATTTCGCGTGCAAAGCCTTACCAAATTCACCGTCGACGACTTTATCGGCTTCTTCAGAGTTATTGAACATGAACGGAAAGTCATACACGGCAAACTCTTTCACTTGCGAAGCTAAGATACCGGAATTCAATACCACCATGTCTAGAGTACCCCCTTGCAGGGCTGAGACATTCTGCGCATCTCCCCCTAAAGCACCGCCAGCGAACA"),
+            vec![
+                gene::Gene {
+                    start: 3,
+                    end: 326,
+                    frame: 3,
+                    score: 1.3039173404556075,
+                    dna: dna("GATAACACGCAGTTTCAGACCTTTAATATCCTCGACCTTAGTGATAGGGTGTTTGCTATTAGTCATATCGCGGAAGCCCAACTCCCAATAGGCTAAACCGATAATACCTTTCTCTTCTAATTTCGCGTGCAAAGCCTTACCAAATTCACCGTCGACGACTTTATCGGCTTCTTCAGAGTTATTGAACATGAACGGAAAGTCATACACGGCAAACTCTTTCACTTGCGAAGCTAAGATACCGGAATTCAATACCACCATGTCTAGAGTACCCCCTTGCAGGGCTGAGACATTCTGCGCATCTCCCCCTAAAGCACCGCCAGCGAA"),
+                    forward_strand: false,
+                    inserted: vec![],
+                    deleted: vec![],
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_deletion() {
+        test_viterbi(
+            "454_10",
+            dna("GTCGACAGTGTAGTAACCAGTGCTCACGATACCATTGTGGGATCAGCGACCAGAGTTGCTGCAACATTTCACCGCTGGTAACAACGACCATCG"),
+            vec![
+                gene::Gene {
+                    start: 1,
+                    end: 91,
+                    frame: 1,
+                    score: 1.3668123444828921,
+                    dna: dna("GTCGACAGTGTAGTAACCAGTGCTCACGATACCATTGtGGGATCAGCGACCAGAGTTGCTGCAACATTTCACCGCTGGTAACAACGACCAT"),
+                    forward_strand: false,
+                    inserted: vec![38],
+                    deleted: vec![],
+                }
+            ]
+        );
+    }
 }

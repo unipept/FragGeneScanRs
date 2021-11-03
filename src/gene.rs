@@ -4,6 +4,7 @@ use thiserror::Error;
 use crate::dna::Nuc::{A, C, G, T};
 use crate::dna::{trinucleotide, Nuc, ANTI_CODON_CODE, CODON_CODE};
 
+#[derive(Debug, PartialEq)]
 pub struct ReadPrediction {
     pub head: Vec<u8>,
     pub genes: Vec<Gene>,
@@ -72,6 +73,7 @@ impl ReadPrediction {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Gene {
     pub start: usize,
     pub end: usize,

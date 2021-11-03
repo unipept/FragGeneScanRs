@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 with open('ena_data_20210917-1328.txt') as f, open('annotations.csv', 'w') as a, open('readlengths.csv', 'w') as l:
     for line in f:
         if line.startswith('AC'):

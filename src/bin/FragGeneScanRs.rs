@@ -22,7 +22,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use rayon::ThreadPoolBuilder;
 
 extern crate frag_gene_scan_rs;
-use frag_gene_scan_rs::dna::{count_cg_content, Nuc};
+use frag_gene_scan_rs::dna::Nuc;
 use frag_gene_scan_rs::gene;
 use frag_gene_scan_rs::hmm;
 use frag_gene_scan_rs::viterbi::viterbi;
@@ -236,17 +236,15 @@ fn run<R: Read + Send, W: WritingBuffer + Send>(
             for record in recordvec {
                 let fasta::OwnedRecord { mut head, seq } = record?;
                 head = head.into_iter().take_while(u8::is_ascii_graphic).collect();
-                let nseq: Vec<Nuc> = seq.into_iter().map(Nuc::from).collect();
+                let nseq: Vec<Nuc> = seq
+                    .iter()
+                    .map(u8::to_ascii_uppercase)
+                    .map(Nuc::from)
+                    .collect();
                 let read_prediction = if nseq.is_empty() {
                     gene::ReadPrediction::new(head)
                 } else {
-                    viterbi(
-                        &global,
-                        &locals[count_cg_content(&nseq)],
-                        head,
-                        nseq,
-                        whole_genome,
-                    )
+                    viterbi(&global, &locals, head, nseq, whole_genome)
                 };
                 if meta_buffer.is_some() {
                     read_prediction.meta(&mut metabuf)?;
