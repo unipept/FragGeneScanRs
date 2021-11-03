@@ -10,13 +10,15 @@ and extract it somewhere in your path, for instance to `~/.local/bin` or
 
 [release]: https://github.com/unipept/FragGeneScanRs/releases/latest
 
-### From source (from crates.io release)
+### From source (from crates.io release) (recommended)
 
 FragGeneScanRs is written in Rust, so first head over to their
 [installation instructions][Rust]. Afterwards, you can install the crate
 from [crates.io][crate] with `cargo install frag_gene_scan_rs` The
 installation progress may prompt you to add a directory to your path so
 you can easily execute it.
+
+The same command will update the installation.
 
 [crate]: https://crates.io/crates/frag_gene_scan_rs
 [Rust]: https://www.rust-lang.org/tools/install
@@ -29,6 +31,9 @@ repository or download the source code of the [latest release][release].
 In this directory, run `cargo install --path .` to compile and install.
 The installation progress may prompt you to add a directory to your path
 so you can easily execute it.
+
+The same command, after pulling the new sources, will update the
+installation.
 
 ## Usage
 
