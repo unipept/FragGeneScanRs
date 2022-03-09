@@ -81,7 +81,7 @@ def to_strand(char):
 	return 1 if char == '+' else -1
 
 for predictor in ['FGS', 'FGS+', 'FGSrs']:
-	with open(f'{predictor}.faa') as f:
+	with open(f'{predictor}2000.faa') as f:
 		header = next(f)
 		sequence = ""
 		for line in f:
@@ -115,7 +115,7 @@ print(head.format('tool', 'TP', 'FP', 'TN', 'FN', 'precision', 'sensitivity', 's
 
 for predictor in predictions:
 	tp, fp, tn, fn, ds = 0, 0, 0, 0, 0
-	with open('alignments.sam') as f:
+	with open('2000.sam') as f:
 		samfile = pysam.AlignmentFile(f)
 		for segment in samfile:
 			origin = segment.get_tag('oR').split('|')[1]
