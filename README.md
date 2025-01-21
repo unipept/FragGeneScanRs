@@ -1,5 +1,10 @@
 # FragGeneScanRs
 
+If you use this code, please cite our manuscript at https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-022-04736-5
+
+> Van der Jeugt, F., Dawyndt, P. & Mesuere, B. FragGeneScanRs: faster gene prediction for short reads. BMC Bioinformatics 23, 198 (2022). https://doi.org/10.1186/s12859-022-04736-5
+
+
 ## Installation
 
 ### From release (fastest)
