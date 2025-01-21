@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+preferred-citation:
+  type: article
+  doi: "10.1186/s12859-022-04736-5"
+  title: "FragGeneScanRs: faster gene prediction for short reads"
+  journal: "BMC Bioinformatics"
+  year: 2022
+  authors:
+    - family-names: "Van der Jeugt"
+      given-names: "Felix"
+    - family-names: "Dawyndt"
+      given-names: "Peter"
+    - family-names: "Mesuere"
+      given-names: "Bart"
+repository-code: "https://github.com/unipept/FragGeneScanRs"
