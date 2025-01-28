@@ -40,6 +40,10 @@ so you can easily execute it.
 The same command, after pulling the new sources, will update the
 installation.
 
+### From Bioconda
+
+FragGeneScanRs is available on [Bioconda](https://bioconda.github.io/) through `conda install frag_gene_scan_rs`.
+
 ## Usage
 
 You can use FragGeneScanRs with the short options of FragGeneScan but
