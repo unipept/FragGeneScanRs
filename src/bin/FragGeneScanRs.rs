@@ -44,7 +44,7 @@ fn main() -> Result<()> {
             .long("output-prefix")
             .value_name("output_prefix")
             .takes_value(true)
-            .help("Output metadata (.out and .gff), proteins (.faa) and genes (.ffn) to files with this prefix. Use 'stdout' to write the predicted proteins to standard output."))
+            .help("Output metadata (.out and .gff), proteins (.faa) and genes (.ffn) to files with this prefix. Don't pass this argument or use 'stdout' to write the predicted proteins to standard output."))
         .arg(Arg::with_name("complete")
             .short("w")
             .long("complete")
@@ -90,25 +90,25 @@ fn main() -> Result<()> {
             .long("meta-file")
             .value_name("meta_file")
             .takes_value(true)
-            .help("Output metadata to this file (supersedes -o)."))
+            .help("Output metadata to this file (supersedes -o). Use - to write to standard output (use only once)."))
         .arg(Arg::with_name("gff-file")
             .short("g")
             .long("gff-file")
             .value_name("gff_file")
             .takes_value(true)
-            .help("Output metadata to this gff formatted file (supersedes -o)."))
+            .help("Output metadata to this gff formatted file (supersedes -o). Use - to write to standard output (use only once)."))
         .arg(Arg::with_name("aa-file")
             .short("a")
             .long("aa-file")
             .value_name("aa_file")
             .takes_value(true)
-            .help("Output predicted proteins to this file (supersedes -o)."))
+            .help("Output predicted proteins to this file (supersedes -o). Use - to write to standard output (use only once)."))
         .arg(Arg::with_name("nucleotide-file")
             .short("n")
             .long("nucleotide-file")
             .value_name("nucleotide_file")
             .takes_value(true)
-            .help("Output predicted genes to this file (supersedes -o)."))
+            .help("Output predicted genes to this file (supersedes -o). Use - to write to standard output (use only once)."))
         .arg(Arg::with_name("unordered")
             .short("u")
             .long("unordered")
@@ -129,6 +129,7 @@ fn main() -> Result<()> {
         matches.value_of("aa-file"),
         matches.value_of("output-prefix"),
     ) {
+        (Some("-"), _) => Some(Box::new(io::stdout())),
         (Some(filename), _) => Some(Box::new(File::create(filename)?)),
         (None, Some("stdout")) => Some(Box::new(io::stdout())),
         (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".faa")?)),
@@ -139,6 +140,7 @@ fn main() -> Result<()> {
         matches.value_of("meta-file"),
         matches.value_of("output-prefix"),
     ) {
+        (Some("-"), _) => Some(Box::new(io::stdout())),
         (Some(filename), _) => Some(Box::new(File::create(filename)?)),
         (None, Some("stdout")) => None,
         (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".out")?)),
@@ -149,6 +151,7 @@ fn main() -> Result<()> {
         matches.value_of("gff-file"),
         matches.value_of("output-prefix"),
     ) {
+        (Some("-"), _) => Some(Box::new(io::stdout())),
         (Some(filename), _) => Some(Box::new(File::create(filename)?)),
         (None, Some("stdout")) => None,
         (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".gff")?)),
@@ -163,6 +166,7 @@ fn main() -> Result<()> {
         matches.value_of("nucleotide-file"),
         matches.value_of("output-prefix"),
     ) {
+        (Some("-"), _) => Some(Box::new(io::stdout())),
         (Some(filename), _) => Some(Box::new(File::create(filename)?)),
         (None, Some("stdout")) => None,
         (None, Some(filename)) => Some(Box::new(File::create(filename.to_owned() + ".ffn")?)),

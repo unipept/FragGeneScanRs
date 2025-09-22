@@ -96,14 +96,53 @@ where:
 
 ### Additional options
 
-* `-m meta_file`, `-n nucleotide_file`, `-a aa_file` and `-g gff_file`
-  can be used to write output to specific files, instead of having the
-  program create filenames with predetermined extentions. These take
-  precedence over the `-o` option.
-
 * Leaving out the `-o` option or using the name `stdout` causes
   FragGeneScanRs to only write the predicted proteins to standard output.
   The other files can still be requested with the specific options above.
+
+* `-m meta_file`, `-n nucleotide_file`, `-a aa_file` and `-g gff_file`
+  can be used to write output to specific files, instead of having the
+  program create filenames with predetermined extentions. These take
+  precedence over the `-o` option. Passing `-` to any of these options
+  will write the respective content to stdout. Passing `-` to multiple
+  of these options is accepted but results in interspersed output.
+
+  - The `-m meta_file` writes, for each sequence, the header of the
+    sequence followed by a tab-separated value lines. Each line corresponds
+    to a gene, and has 7 columns
+
+    1. the 1-based index of the start of the gene in the original sequence
+    2. the 1-based index of the end of the gene in the original sequence
+    3. whether the gene was predicted on the forward (`+`) or reverse (`-`) strand
+    4. the frame where the gene started on (`1`, `2` or `3`)
+    5. the score of the prediction
+    6. the 1-based indices of predicted insertions, e.g. `I:14,15`
+    7. the 1-based indices of predicted deletions, e.g. `D:14,15`
+
+  - The `-n nucleotide_file` writes, for each predicted gene, the
+    corresponding sequence of nucleotides. For instance, for the first
+    predicted gene in  `example/NC_000913-454.fna`, it writes a header
+    `>r1.1_2_79_-` and a sequence. The header refers to the original
+    sequence header (`r1.1`), the start (`2`) and end (`79`) index of
+    the predicted gene in the original sequence and the strand (`-`).
+
+  - The `-a aa_file` writes the same output as the `-n` nucleotide file,
+    but uses the predicted amino acid sequence rather than the nucleotide
+    sequence.
+
+  - The `-g gff_file` writes a version header and, for each predicted gene,
+    a tab-separated line of metadata. The columns are:
+
+    1. the header of the original sequence
+    2. the string `FGS`
+    3. the string `CDS`
+    4. the 1-based index of the start of the gene in the original sequence
+    5. the 1-based index of the end of the gene in the original sequence
+    6. the string `.`
+    7. whether the gene was predicted on the forward (`+`) or reverse (`-`) strand
+    8. the frame where the gene started on (`0`, `1` or `2`)
+    9. an identifier for the predicted gene and the type of product,
+       marked with `ID=` and `product=`. The latter is always `predicted protein`.
 
 * Leaving out the `-s` options causes FragGeneScanRs to read sequences
   from standard input.
