@@ -245,7 +245,7 @@ fn run<R: Read + Send, W: WritingBuffer + Send>(
                     .map(u8::to_ascii_uppercase)
                     .map(Nuc::from)
                     .collect();
-                let read_prediction = if nseq.is_empty() {
+                let read_prediction = if nseq.len() < 3 {
                     gene::ReadPrediction::new(head)
                 } else {
                     viterbi(&global, &locals, head, nseq, whole_genome)
