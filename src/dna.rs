@@ -7,64 +7,71 @@ pub const ACGT: usize = 4;
 pub const BI_ACGT: usize = 4 * 4;
 pub const TRI_ACGT: usize = 4 * 4 * 4;
 
+/// Nucleotide representation optimized for bit operations.
+///
+/// Layout: bit 0 = insertion flag, bits 1-2 = base encoding
+/// - A=0, Ai=1, C=2, Ci=3, G=4, Gi=5, T=6, Ti=7
+/// - N, Ni, Xi are special values >= 8
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
 pub enum Nuc {
-    A,
-    C,
-    G,
-    T,
-    N,
-    Ai,
-    Ci,
-    Gi,
-    Ti,
-    Ni,
-    Xi,
+    A = 0,
+    Ai = 1,
+    C = 2,
+    Ci = 3,
+    G = 4,
+    Gi = 5,
+    T = 6,
+    Ti = 7,
+    N = 8,
+    Ni = 9,
+    Xi = 10,
 }
 
 impl Nuc {
+    /// Convert to base index (0=A, 1=C, 2=G, 3=T), None for N/Ni/Xi
+    #[inline]
     pub fn to_int(&self) -> Option<usize> {
-        match self {
-            Nuc::A | Nuc::Ai => Some(0),
-            Nuc::C | Nuc::Ci => Some(1),
-            Nuc::G | Nuc::Gi => Some(2),
-            Nuc::T | Nuc::Ti => Some(3),
-            Nuc::N | Nuc::Ni => None,
-            Nuc::Xi => None,
+        let v = *self as u8;
+        if v < 8 {
+            Some((v >> 1) as usize)
+        } else {
+            None
         }
     }
 
+    /// Convert to lowercase (insertion) variant
+    #[inline]
     pub fn to_lower(&self) -> Nuc {
-        match self {
-            Nuc::A | Nuc::Ai => Nuc::Ai,
-            Nuc::C | Nuc::Ci => Nuc::Ci,
-            Nuc::G | Nuc::Gi => Nuc::Gi,
-            Nuc::T | Nuc::Ti => Nuc::Ti,
-            Nuc::N | Nuc::Ni => Nuc::Ni,
-            Nuc::Xi => Nuc::Xi,
+        let v = *self as u8;
+        if v < 8 {
+            // Set bit 0 to make it an insertion variant
+            // SAFETY: v | 1 for v in 0..8 is always in 0..8 (valid Nuc)
+            unsafe { std::mem::transmute(v | 1) }
+        } else {
+            // N, Ni, Xi stay the same (Xi | 1 = 11 which is invalid)
+            *self
         }
     }
 
+    /// Check if this is an insertion (lowercase) variant
+    #[inline]
     pub fn is_insertion(&self) -> bool {
-        match self {
-            Nuc::Ai | Nuc::Ci | Nuc::Gi | Nuc::Ti | Nuc::Ni => true,
-            _ => false,
-        }
+        (*self as u8) & 1 == 1
     }
 
+    /// Reverse complement: A<->T, C<->G
+    #[inline]
     pub fn rc(&self) -> Nuc {
-        match self {
-            Nuc::A => Nuc::T,
-            Nuc::C => Nuc::G,
-            Nuc::G => Nuc::C,
-            Nuc::T => Nuc::A,
-            Nuc::N => Nuc::N,
-            Nuc::Ai => Nuc::Ti,
-            Nuc::Ci => Nuc::Gi,
-            Nuc::Gi => Nuc::Ci,
-            Nuc::Ti => Nuc::Ai,
-            Nuc::Ni => Nuc::Ni,
-            Nuc::Xi => Nuc::Xi,
+        let v = *self as u8;
+        if v < 8 {
+            // XOR with 6 swaps A(0)<->T(6) and C(2)<->G(4)
+            // while preserving bit 0 (insertion flag)
+            // SAFETY: v ^ 6 for v in 0..8 is always in 0..8
+            unsafe { std::mem::transmute(v ^ 6) }
+        } else {
+            // N, Ni, Xi stay the same
+            *self
         }
     }
 }
@@ -123,522 +130,15 @@ pub const ANTI_CODON_CODE: [u8; TRI_ACGT] = [
     b'L', b'V', b'L', b'I', b'*', b'G', b'R', b'R', b'S', b'A', b'P', b'T', b'*', b'E', b'Q', b'K',
 ];
 
+/// Convert a trinucleotide to its codon index (0-63).
+/// Returns None if any nucleotide is N, Ni, or Xi.
+#[inline]
 pub fn trinucleotide(n: &[Nuc]) -> Option<usize> {
-    match n.get(0..3).unwrap() {
-        [Nuc::A, Nuc::A, Nuc::A]
-        | [Nuc::A, Nuc::A, Nuc::Ai]
-        | [Nuc::A, Nuc::Ai, Nuc::A]
-        | [Nuc::A, Nuc::Ai, Nuc::Ai]
-        | [Nuc::Ai, Nuc::A, Nuc::A]
-        | [Nuc::Ai, Nuc::A, Nuc::Ai]
-        | [Nuc::Ai, Nuc::Ai, Nuc::A]
-        | [Nuc::Ai, Nuc::Ai, Nuc::Ai] => Some(0),
-        [Nuc::A, Nuc::A, Nuc::C]
-        | [Nuc::A, Nuc::A, Nuc::Ci]
-        | [Nuc::A, Nuc::Ai, Nuc::C]
-        | [Nuc::A, Nuc::Ai, Nuc::Ci]
-        | [Nuc::Ai, Nuc::A, Nuc::C]
-        | [Nuc::Ai, Nuc::A, Nuc::Ci]
-        | [Nuc::Ai, Nuc::Ai, Nuc::C]
-        | [Nuc::Ai, Nuc::Ai, Nuc::Ci] => Some(1),
-        [Nuc::A, Nuc::A, Nuc::G]
-        | [Nuc::A, Nuc::A, Nuc::Gi]
-        | [Nuc::A, Nuc::Ai, Nuc::G]
-        | [Nuc::A, Nuc::Ai, Nuc::Gi]
-        | [Nuc::Ai, Nuc::A, Nuc::G]
-        | [Nuc::Ai, Nuc::A, Nuc::Gi]
-        | [Nuc::Ai, Nuc::Ai, Nuc::G]
-        | [Nuc::Ai, Nuc::Ai, Nuc::Gi] => Some(2),
-        [Nuc::A, Nuc::A, Nuc::T]
-        | [Nuc::A, Nuc::A, Nuc::Ti]
-        | [Nuc::A, Nuc::Ai, Nuc::T]
-        | [Nuc::A, Nuc::Ai, Nuc::Ti]
-        | [Nuc::Ai, Nuc::A, Nuc::T]
-        | [Nuc::Ai, Nuc::A, Nuc::Ti]
-        | [Nuc::Ai, Nuc::Ai, Nuc::T]
-        | [Nuc::Ai, Nuc::Ai, Nuc::Ti] => Some(3),
-        [Nuc::A, Nuc::C, Nuc::A]
-        | [Nuc::A, Nuc::C, Nuc::Ai]
-        | [Nuc::A, Nuc::Ci, Nuc::A]
-        | [Nuc::A, Nuc::Ci, Nuc::Ai]
-        | [Nuc::Ai, Nuc::C, Nuc::A]
-        | [Nuc::Ai, Nuc::C, Nuc::Ai]
-        | [Nuc::Ai, Nuc::Ci, Nuc::A]
-        | [Nuc::Ai, Nuc::Ci, Nuc::Ai] => Some(4),
-        [Nuc::A, Nuc::C, Nuc::C]
-        | [Nuc::A, Nuc::C, Nuc::Ci]
-        | [Nuc::A, Nuc::Ci, Nuc::C]
-        | [Nuc::A, Nuc::Ci, Nuc::Ci]
-        | [Nuc::Ai, Nuc::C, Nuc::C]
-        | [Nuc::Ai, Nuc::C, Nuc::Ci]
-        | [Nuc::Ai, Nuc::Ci, Nuc::C]
-        | [Nuc::Ai, Nuc::Ci, Nuc::Ci] => Some(5),
-        [Nuc::A, Nuc::C, Nuc::G]
-        | [Nuc::A, Nuc::C, Nuc::Gi]
-        | [Nuc::A, Nuc::Ci, Nuc::G]
-        | [Nuc::A, Nuc::Ci, Nuc::Gi]
-        | [Nuc::Ai, Nuc::C, Nuc::G]
-        | [Nuc::Ai, Nuc::C, Nuc::Gi]
-        | [Nuc::Ai, Nuc::Ci, Nuc::G]
-        | [Nuc::Ai, Nuc::Ci, Nuc::Gi] => Some(6),
-        [Nuc::A, Nuc::C, Nuc::T]
-        | [Nuc::A, Nuc::C, Nuc::Ti]
-        | [Nuc::A, Nuc::Ci, Nuc::T]
-        | [Nuc::A, Nuc::Ci, Nuc::Ti]
-        | [Nuc::Ai, Nuc::C, Nuc::T]
-        | [Nuc::Ai, Nuc::C, Nuc::Ti]
-        | [Nuc::Ai, Nuc::Ci, Nuc::T]
-        | [Nuc::Ai, Nuc::Ci, Nuc::Ti] => Some(7),
-        [Nuc::A, Nuc::G, Nuc::A]
-        | [Nuc::A, Nuc::G, Nuc::Ai]
-        | [Nuc::A, Nuc::Gi, Nuc::A]
-        | [Nuc::A, Nuc::Gi, Nuc::Ai]
-        | [Nuc::Ai, Nuc::G, Nuc::A]
-        | [Nuc::Ai, Nuc::G, Nuc::Ai]
-        | [Nuc::Ai, Nuc::Gi, Nuc::A]
-        | [Nuc::Ai, Nuc::Gi, Nuc::Ai] => Some(8),
-        [Nuc::A, Nuc::G, Nuc::C]
-        | [Nuc::A, Nuc::G, Nuc::Ci]
-        | [Nuc::A, Nuc::Gi, Nuc::C]
-        | [Nuc::A, Nuc::Gi, Nuc::Ci]
-        | [Nuc::Ai, Nuc::G, Nuc::C]
-        | [Nuc::Ai, Nuc::G, Nuc::Ci]
-        | [Nuc::Ai, Nuc::Gi, Nuc::C]
-        | [Nuc::Ai, Nuc::Gi, Nuc::Ci] => Some(9),
-        [Nuc::A, Nuc::G, Nuc::G]
-        | [Nuc::A, Nuc::G, Nuc::Gi]
-        | [Nuc::A, Nuc::Gi, Nuc::G]
-        | [Nuc::A, Nuc::Gi, Nuc::Gi]
-        | [Nuc::Ai, Nuc::G, Nuc::G]
-        | [Nuc::Ai, Nuc::G, Nuc::Gi]
-        | [Nuc::Ai, Nuc::Gi, Nuc::G]
-        | [Nuc::Ai, Nuc::Gi, Nuc::Gi] => Some(10),
-        [Nuc::A, Nuc::G, Nuc::T]
-        | [Nuc::A, Nuc::G, Nuc::Ti]
-        | [Nuc::A, Nuc::Gi, Nuc::T]
-        | [Nuc::A, Nuc::Gi, Nuc::Ti]
-        | [Nuc::Ai, Nuc::G, Nuc::T]
-        | [Nuc::Ai, Nuc::G, Nuc::Ti]
-        | [Nuc::Ai, Nuc::Gi, Nuc::T]
-        | [Nuc::Ai, Nuc::Gi, Nuc::Ti] => Some(11),
-        [Nuc::A, Nuc::T, Nuc::A]
-        | [Nuc::A, Nuc::T, Nuc::Ai]
-        | [Nuc::A, Nuc::Ti, Nuc::A]
-        | [Nuc::A, Nuc::Ti, Nuc::Ai]
-        | [Nuc::Ai, Nuc::T, Nuc::A]
-        | [Nuc::Ai, Nuc::T, Nuc::Ai]
-        | [Nuc::Ai, Nuc::Ti, Nuc::A]
-        | [Nuc::Ai, Nuc::Ti, Nuc::Ai] => Some(12),
-        [Nuc::A, Nuc::T, Nuc::C]
-        | [Nuc::A, Nuc::T, Nuc::Ci]
-        | [Nuc::A, Nuc::Ti, Nuc::C]
-        | [Nuc::A, Nuc::Ti, Nuc::Ci]
-        | [Nuc::Ai, Nuc::T, Nuc::C]
-        | [Nuc::Ai, Nuc::T, Nuc::Ci]
-        | [Nuc::Ai, Nuc::Ti, Nuc::C]
-        | [Nuc::Ai, Nuc::Ti, Nuc::Ci] => Some(13),
-        [Nuc::A, Nuc::T, Nuc::G]
-        | [Nuc::A, Nuc::T, Nuc::Gi]
-        | [Nuc::A, Nuc::Ti, Nuc::G]
-        | [Nuc::A, Nuc::Ti, Nuc::Gi]
-        | [Nuc::Ai, Nuc::T, Nuc::G]
-        | [Nuc::Ai, Nuc::T, Nuc::Gi]
-        | [Nuc::Ai, Nuc::Ti, Nuc::G]
-        | [Nuc::Ai, Nuc::Ti, Nuc::Gi] => Some(14),
-        [Nuc::A, Nuc::T, Nuc::T]
-        | [Nuc::A, Nuc::T, Nuc::Ti]
-        | [Nuc::A, Nuc::Ti, Nuc::T]
-        | [Nuc::A, Nuc::Ti, Nuc::Ti]
-        | [Nuc::Ai, Nuc::T, Nuc::T]
-        | [Nuc::Ai, Nuc::T, Nuc::Ti]
-        | [Nuc::Ai, Nuc::Ti, Nuc::T]
-        | [Nuc::Ai, Nuc::Ti, Nuc::Ti] => Some(15),
-        [Nuc::C, Nuc::A, Nuc::A]
-        | [Nuc::C, Nuc::A, Nuc::Ai]
-        | [Nuc::C, Nuc::Ai, Nuc::A]
-        | [Nuc::C, Nuc::Ai, Nuc::Ai]
-        | [Nuc::Ci, Nuc::A, Nuc::A]
-        | [Nuc::Ci, Nuc::A, Nuc::Ai]
-        | [Nuc::Ci, Nuc::Ai, Nuc::A]
-        | [Nuc::Ci, Nuc::Ai, Nuc::Ai] => Some(16),
-        [Nuc::C, Nuc::A, Nuc::C]
-        | [Nuc::C, Nuc::A, Nuc::Ci]
-        | [Nuc::C, Nuc::Ai, Nuc::C]
-        | [Nuc::C, Nuc::Ai, Nuc::Ci]
-        | [Nuc::Ci, Nuc::A, Nuc::C]
-        | [Nuc::Ci, Nuc::A, Nuc::Ci]
-        | [Nuc::Ci, Nuc::Ai, Nuc::C]
-        | [Nuc::Ci, Nuc::Ai, Nuc::Ci] => Some(17),
-        [Nuc::C, Nuc::A, Nuc::G]
-        | [Nuc::C, Nuc::A, Nuc::Gi]
-        | [Nuc::C, Nuc::Ai, Nuc::G]
-        | [Nuc::C, Nuc::Ai, Nuc::Gi]
-        | [Nuc::Ci, Nuc::A, Nuc::G]
-        | [Nuc::Ci, Nuc::A, Nuc::Gi]
-        | [Nuc::Ci, Nuc::Ai, Nuc::G]
-        | [Nuc::Ci, Nuc::Ai, Nuc::Gi] => Some(18),
-        [Nuc::C, Nuc::A, Nuc::T]
-        | [Nuc::C, Nuc::A, Nuc::Ti]
-        | [Nuc::C, Nuc::Ai, Nuc::T]
-        | [Nuc::C, Nuc::Ai, Nuc::Ti]
-        | [Nuc::Ci, Nuc::A, Nuc::T]
-        | [Nuc::Ci, Nuc::A, Nuc::Ti]
-        | [Nuc::Ci, Nuc::Ai, Nuc::T]
-        | [Nuc::Ci, Nuc::Ai, Nuc::Ti] => Some(19),
-        [Nuc::C, Nuc::C, Nuc::A]
-        | [Nuc::C, Nuc::C, Nuc::Ai]
-        | [Nuc::C, Nuc::Ci, Nuc::A]
-        | [Nuc::C, Nuc::Ci, Nuc::Ai]
-        | [Nuc::Ci, Nuc::C, Nuc::A]
-        | [Nuc::Ci, Nuc::C, Nuc::Ai]
-        | [Nuc::Ci, Nuc::Ci, Nuc::A]
-        | [Nuc::Ci, Nuc::Ci, Nuc::Ai] => Some(20),
-        [Nuc::C, Nuc::C, Nuc::C]
-        | [Nuc::C, Nuc::C, Nuc::Ci]
-        | [Nuc::C, Nuc::Ci, Nuc::C]
-        | [Nuc::C, Nuc::Ci, Nuc::Ci]
-        | [Nuc::Ci, Nuc::C, Nuc::C]
-        | [Nuc::Ci, Nuc::C, Nuc::Ci]
-        | [Nuc::Ci, Nuc::Ci, Nuc::C]
-        | [Nuc::Ci, Nuc::Ci, Nuc::Ci] => Some(21),
-        [Nuc::C, Nuc::C, Nuc::G]
-        | [Nuc::C, Nuc::C, Nuc::Gi]
-        | [Nuc::C, Nuc::Ci, Nuc::G]
-        | [Nuc::C, Nuc::Ci, Nuc::Gi]
-        | [Nuc::Ci, Nuc::C, Nuc::G]
-        | [Nuc::Ci, Nuc::C, Nuc::Gi]
-        | [Nuc::Ci, Nuc::Ci, Nuc::G]
-        | [Nuc::Ci, Nuc::Ci, Nuc::Gi] => Some(22),
-        [Nuc::C, Nuc::C, Nuc::T]
-        | [Nuc::C, Nuc::C, Nuc::Ti]
-        | [Nuc::C, Nuc::Ci, Nuc::T]
-        | [Nuc::C, Nuc::Ci, Nuc::Ti]
-        | [Nuc::Ci, Nuc::C, Nuc::T]
-        | [Nuc::Ci, Nuc::C, Nuc::Ti]
-        | [Nuc::Ci, Nuc::Ci, Nuc::T]
-        | [Nuc::Ci, Nuc::Ci, Nuc::Ti] => Some(23),
-        [Nuc::C, Nuc::G, Nuc::A]
-        | [Nuc::C, Nuc::G, Nuc::Ai]
-        | [Nuc::C, Nuc::Gi, Nuc::A]
-        | [Nuc::C, Nuc::Gi, Nuc::Ai]
-        | [Nuc::Ci, Nuc::G, Nuc::A]
-        | [Nuc::Ci, Nuc::G, Nuc::Ai]
-        | [Nuc::Ci, Nuc::Gi, Nuc::A]
-        | [Nuc::Ci, Nuc::Gi, Nuc::Ai] => Some(24),
-        [Nuc::C, Nuc::G, Nuc::C]
-        | [Nuc::C, Nuc::G, Nuc::Ci]
-        | [Nuc::C, Nuc::Gi, Nuc::C]
-        | [Nuc::C, Nuc::Gi, Nuc::Ci]
-        | [Nuc::Ci, Nuc::G, Nuc::C]
-        | [Nuc::Ci, Nuc::G, Nuc::Ci]
-        | [Nuc::Ci, Nuc::Gi, Nuc::C]
-        | [Nuc::Ci, Nuc::Gi, Nuc::Ci] => Some(25),
-        [Nuc::C, Nuc::G, Nuc::G]
-        | [Nuc::C, Nuc::G, Nuc::Gi]
-        | [Nuc::C, Nuc::Gi, Nuc::G]
-        | [Nuc::C, Nuc::Gi, Nuc::Gi]
-        | [Nuc::Ci, Nuc::G, Nuc::G]
-        | [Nuc::Ci, Nuc::G, Nuc::Gi]
-        | [Nuc::Ci, Nuc::Gi, Nuc::G]
-        | [Nuc::Ci, Nuc::Gi, Nuc::Gi] => Some(26),
-        [Nuc::C, Nuc::G, Nuc::T]
-        | [Nuc::C, Nuc::G, Nuc::Ti]
-        | [Nuc::C, Nuc::Gi, Nuc::T]
-        | [Nuc::C, Nuc::Gi, Nuc::Ti]
-        | [Nuc::Ci, Nuc::G, Nuc::T]
-        | [Nuc::Ci, Nuc::G, Nuc::Ti]
-        | [Nuc::Ci, Nuc::Gi, Nuc::T]
-        | [Nuc::Ci, Nuc::Gi, Nuc::Ti] => Some(27),
-        [Nuc::C, Nuc::T, Nuc::A]
-        | [Nuc::C, Nuc::T, Nuc::Ai]
-        | [Nuc::C, Nuc::Ti, Nuc::A]
-        | [Nuc::C, Nuc::Ti, Nuc::Ai]
-        | [Nuc::Ci, Nuc::T, Nuc::A]
-        | [Nuc::Ci, Nuc::T, Nuc::Ai]
-        | [Nuc::Ci, Nuc::Ti, Nuc::A]
-        | [Nuc::Ci, Nuc::Ti, Nuc::Ai] => Some(28),
-        [Nuc::C, Nuc::T, Nuc::C]
-        | [Nuc::C, Nuc::T, Nuc::Ci]
-        | [Nuc::C, Nuc::Ti, Nuc::C]
-        | [Nuc::C, Nuc::Ti, Nuc::Ci]
-        | [Nuc::Ci, Nuc::T, Nuc::C]
-        | [Nuc::Ci, Nuc::T, Nuc::Ci]
-        | [Nuc::Ci, Nuc::Ti, Nuc::C]
-        | [Nuc::Ci, Nuc::Ti, Nuc::Ci] => Some(29),
-        [Nuc::C, Nuc::T, Nuc::G]
-        | [Nuc::C, Nuc::T, Nuc::Gi]
-        | [Nuc::C, Nuc::Ti, Nuc::G]
-        | [Nuc::C, Nuc::Ti, Nuc::Gi]
-        | [Nuc::Ci, Nuc::T, Nuc::G]
-        | [Nuc::Ci, Nuc::T, Nuc::Gi]
-        | [Nuc::Ci, Nuc::Ti, Nuc::G]
-        | [Nuc::Ci, Nuc::Ti, Nuc::Gi] => Some(30),
-        [Nuc::C, Nuc::T, Nuc::T]
-        | [Nuc::C, Nuc::T, Nuc::Ti]
-        | [Nuc::C, Nuc::Ti, Nuc::T]
-        | [Nuc::C, Nuc::Ti, Nuc::Ti]
-        | [Nuc::Ci, Nuc::T, Nuc::T]
-        | [Nuc::Ci, Nuc::T, Nuc::Ti]
-        | [Nuc::Ci, Nuc::Ti, Nuc::T]
-        | [Nuc::Ci, Nuc::Ti, Nuc::Ti] => Some(31),
-        [Nuc::G, Nuc::A, Nuc::A]
-        | [Nuc::G, Nuc::A, Nuc::Ai]
-        | [Nuc::G, Nuc::Ai, Nuc::A]
-        | [Nuc::G, Nuc::Ai, Nuc::Ai]
-        | [Nuc::Gi, Nuc::A, Nuc::A]
-        | [Nuc::Gi, Nuc::A, Nuc::Ai]
-        | [Nuc::Gi, Nuc::Ai, Nuc::A]
-        | [Nuc::Gi, Nuc::Ai, Nuc::Ai] => Some(32),
-        [Nuc::G, Nuc::A, Nuc::C]
-        | [Nuc::G, Nuc::A, Nuc::Ci]
-        | [Nuc::G, Nuc::Ai, Nuc::C]
-        | [Nuc::G, Nuc::Ai, Nuc::Ci]
-        | [Nuc::Gi, Nuc::A, Nuc::C]
-        | [Nuc::Gi, Nuc::A, Nuc::Ci]
-        | [Nuc::Gi, Nuc::Ai, Nuc::C]
-        | [Nuc::Gi, Nuc::Ai, Nuc::Ci] => Some(33),
-        [Nuc::G, Nuc::A, Nuc::G]
-        | [Nuc::G, Nuc::A, Nuc::Gi]
-        | [Nuc::G, Nuc::Ai, Nuc::G]
-        | [Nuc::G, Nuc::Ai, Nuc::Gi]
-        | [Nuc::Gi, Nuc::A, Nuc::G]
-        | [Nuc::Gi, Nuc::A, Nuc::Gi]
-        | [Nuc::Gi, Nuc::Ai, Nuc::G]
-        | [Nuc::Gi, Nuc::Ai, Nuc::Gi] => Some(34),
-        [Nuc::G, Nuc::A, Nuc::T]
-        | [Nuc::G, Nuc::A, Nuc::Ti]
-        | [Nuc::G, Nuc::Ai, Nuc::T]
-        | [Nuc::G, Nuc::Ai, Nuc::Ti]
-        | [Nuc::Gi, Nuc::A, Nuc::T]
-        | [Nuc::Gi, Nuc::A, Nuc::Ti]
-        | [Nuc::Gi, Nuc::Ai, Nuc::T]
-        | [Nuc::Gi, Nuc::Ai, Nuc::Ti] => Some(35),
-        [Nuc::G, Nuc::C, Nuc::A]
-        | [Nuc::G, Nuc::C, Nuc::Ai]
-        | [Nuc::G, Nuc::Ci, Nuc::A]
-        | [Nuc::G, Nuc::Ci, Nuc::Ai]
-        | [Nuc::Gi, Nuc::C, Nuc::A]
-        | [Nuc::Gi, Nuc::C, Nuc::Ai]
-        | [Nuc::Gi, Nuc::Ci, Nuc::A]
-        | [Nuc::Gi, Nuc::Ci, Nuc::Ai] => Some(36),
-        [Nuc::G, Nuc::C, Nuc::C]
-        | [Nuc::G, Nuc::C, Nuc::Ci]
-        | [Nuc::G, Nuc::Ci, Nuc::C]
-        | [Nuc::G, Nuc::Ci, Nuc::Ci]
-        | [Nuc::Gi, Nuc::C, Nuc::C]
-        | [Nuc::Gi, Nuc::C, Nuc::Ci]
-        | [Nuc::Gi, Nuc::Ci, Nuc::C]
-        | [Nuc::Gi, Nuc::Ci, Nuc::Ci] => Some(37),
-        [Nuc::G, Nuc::C, Nuc::G]
-        | [Nuc::G, Nuc::C, Nuc::Gi]
-        | [Nuc::G, Nuc::Ci, Nuc::G]
-        | [Nuc::G, Nuc::Ci, Nuc::Gi]
-        | [Nuc::Gi, Nuc::C, Nuc::G]
-        | [Nuc::Gi, Nuc::C, Nuc::Gi]
-        | [Nuc::Gi, Nuc::Ci, Nuc::G]
-        | [Nuc::Gi, Nuc::Ci, Nuc::Gi] => Some(38),
-        [Nuc::G, Nuc::C, Nuc::T]
-        | [Nuc::G, Nuc::C, Nuc::Ti]
-        | [Nuc::G, Nuc::Ci, Nuc::T]
-        | [Nuc::G, Nuc::Ci, Nuc::Ti]
-        | [Nuc::Gi, Nuc::C, Nuc::T]
-        | [Nuc::Gi, Nuc::C, Nuc::Ti]
-        | [Nuc::Gi, Nuc::Ci, Nuc::T]
-        | [Nuc::Gi, Nuc::Ci, Nuc::Ti] => Some(39),
-        [Nuc::G, Nuc::G, Nuc::A]
-        | [Nuc::G, Nuc::G, Nuc::Ai]
-        | [Nuc::G, Nuc::Gi, Nuc::A]
-        | [Nuc::G, Nuc::Gi, Nuc::Ai]
-        | [Nuc::Gi, Nuc::G, Nuc::A]
-        | [Nuc::Gi, Nuc::G, Nuc::Ai]
-        | [Nuc::Gi, Nuc::Gi, Nuc::A]
-        | [Nuc::Gi, Nuc::Gi, Nuc::Ai] => Some(40),
-        [Nuc::G, Nuc::G, Nuc::C]
-        | [Nuc::G, Nuc::G, Nuc::Ci]
-        | [Nuc::G, Nuc::Gi, Nuc::C]
-        | [Nuc::G, Nuc::Gi, Nuc::Ci]
-        | [Nuc::Gi, Nuc::G, Nuc::C]
-        | [Nuc::Gi, Nuc::G, Nuc::Ci]
-        | [Nuc::Gi, Nuc::Gi, Nuc::C]
-        | [Nuc::Gi, Nuc::Gi, Nuc::Ci] => Some(41),
-        [Nuc::G, Nuc::G, Nuc::G]
-        | [Nuc::G, Nuc::G, Nuc::Gi]
-        | [Nuc::G, Nuc::Gi, Nuc::G]
-        | [Nuc::G, Nuc::Gi, Nuc::Gi]
-        | [Nuc::Gi, Nuc::G, Nuc::G]
-        | [Nuc::Gi, Nuc::G, Nuc::Gi]
-        | [Nuc::Gi, Nuc::Gi, Nuc::G]
-        | [Nuc::Gi, Nuc::Gi, Nuc::Gi] => Some(42),
-        [Nuc::G, Nuc::G, Nuc::T]
-        | [Nuc::G, Nuc::G, Nuc::Ti]
-        | [Nuc::G, Nuc::Gi, Nuc::T]
-        | [Nuc::G, Nuc::Gi, Nuc::Ti]
-        | [Nuc::Gi, Nuc::G, Nuc::T]
-        | [Nuc::Gi, Nuc::G, Nuc::Ti]
-        | [Nuc::Gi, Nuc::Gi, Nuc::T]
-        | [Nuc::Gi, Nuc::Gi, Nuc::Ti] => Some(43),
-        [Nuc::G, Nuc::T, Nuc::A]
-        | [Nuc::G, Nuc::T, Nuc::Ai]
-        | [Nuc::G, Nuc::Ti, Nuc::A]
-        | [Nuc::G, Nuc::Ti, Nuc::Ai]
-        | [Nuc::Gi, Nuc::T, Nuc::A]
-        | [Nuc::Gi, Nuc::T, Nuc::Ai]
-        | [Nuc::Gi, Nuc::Ti, Nuc::A]
-        | [Nuc::Gi, Nuc::Ti, Nuc::Ai] => Some(44),
-        [Nuc::G, Nuc::T, Nuc::C]
-        | [Nuc::G, Nuc::T, Nuc::Ci]
-        | [Nuc::G, Nuc::Ti, Nuc::C]
-        | [Nuc::G, Nuc::Ti, Nuc::Ci]
-        | [Nuc::Gi, Nuc::T, Nuc::C]
-        | [Nuc::Gi, Nuc::T, Nuc::Ci]
-        | [Nuc::Gi, Nuc::Ti, Nuc::C]
-        | [Nuc::Gi, Nuc::Ti, Nuc::Ci] => Some(45),
-        [Nuc::G, Nuc::T, Nuc::G]
-        | [Nuc::G, Nuc::T, Nuc::Gi]
-        | [Nuc::G, Nuc::Ti, Nuc::G]
-        | [Nuc::G, Nuc::Ti, Nuc::Gi]
-        | [Nuc::Gi, Nuc::T, Nuc::G]
-        | [Nuc::Gi, Nuc::T, Nuc::Gi]
-        | [Nuc::Gi, Nuc::Ti, Nuc::G]
-        | [Nuc::Gi, Nuc::Ti, Nuc::Gi] => Some(46),
-        [Nuc::G, Nuc::T, Nuc::T]
-        | [Nuc::G, Nuc::T, Nuc::Ti]
-        | [Nuc::G, Nuc::Ti, Nuc::T]
-        | [Nuc::G, Nuc::Ti, Nuc::Ti]
-        | [Nuc::Gi, Nuc::T, Nuc::T]
-        | [Nuc::Gi, Nuc::T, Nuc::Ti]
-        | [Nuc::Gi, Nuc::Ti, Nuc::T]
-        | [Nuc::Gi, Nuc::Ti, Nuc::Ti] => Some(47),
-        [Nuc::T, Nuc::A, Nuc::A]
-        | [Nuc::T, Nuc::A, Nuc::Ai]
-        | [Nuc::T, Nuc::Ai, Nuc::A]
-        | [Nuc::T, Nuc::Ai, Nuc::Ai]
-        | [Nuc::Ti, Nuc::A, Nuc::A]
-        | [Nuc::Ti, Nuc::A, Nuc::Ai]
-        | [Nuc::Ti, Nuc::Ai, Nuc::A]
-        | [Nuc::Ti, Nuc::Ai, Nuc::Ai] => Some(48),
-        [Nuc::T, Nuc::A, Nuc::C]
-        | [Nuc::T, Nuc::A, Nuc::Ci]
-        | [Nuc::T, Nuc::Ai, Nuc::C]
-        | [Nuc::T, Nuc::Ai, Nuc::Ci]
-        | [Nuc::Ti, Nuc::A, Nuc::C]
-        | [Nuc::Ti, Nuc::A, Nuc::Ci]
-        | [Nuc::Ti, Nuc::Ai, Nuc::C]
-        | [Nuc::Ti, Nuc::Ai, Nuc::Ci] => Some(49),
-        [Nuc::T, Nuc::A, Nuc::G]
-        | [Nuc::T, Nuc::A, Nuc::Gi]
-        | [Nuc::T, Nuc::Ai, Nuc::G]
-        | [Nuc::T, Nuc::Ai, Nuc::Gi]
-        | [Nuc::Ti, Nuc::A, Nuc::G]
-        | [Nuc::Ti, Nuc::A, Nuc::Gi]
-        | [Nuc::Ti, Nuc::Ai, Nuc::G]
-        | [Nuc::Ti, Nuc::Ai, Nuc::Gi] => Some(50),
-        [Nuc::T, Nuc::A, Nuc::T]
-        | [Nuc::T, Nuc::A, Nuc::Ti]
-        | [Nuc::T, Nuc::Ai, Nuc::T]
-        | [Nuc::T, Nuc::Ai, Nuc::Ti]
-        | [Nuc::Ti, Nuc::A, Nuc::T]
-        | [Nuc::Ti, Nuc::A, Nuc::Ti]
-        | [Nuc::Ti, Nuc::Ai, Nuc::T]
-        | [Nuc::Ti, Nuc::Ai, Nuc::Ti] => Some(51),
-        [Nuc::T, Nuc::C, Nuc::A]
-        | [Nuc::T, Nuc::C, Nuc::Ai]
-        | [Nuc::T, Nuc::Ci, Nuc::A]
-        | [Nuc::T, Nuc::Ci, Nuc::Ai]
-        | [Nuc::Ti, Nuc::C, Nuc::A]
-        | [Nuc::Ti, Nuc::C, Nuc::Ai]
-        | [Nuc::Ti, Nuc::Ci, Nuc::A]
-        | [Nuc::Ti, Nuc::Ci, Nuc::Ai] => Some(52),
-        [Nuc::T, Nuc::C, Nuc::C]
-        | [Nuc::T, Nuc::C, Nuc::Ci]
-        | [Nuc::T, Nuc::Ci, Nuc::C]
-        | [Nuc::T, Nuc::Ci, Nuc::Ci]
-        | [Nuc::Ti, Nuc::C, Nuc::C]
-        | [Nuc::Ti, Nuc::C, Nuc::Ci]
-        | [Nuc::Ti, Nuc::Ci, Nuc::C]
-        | [Nuc::Ti, Nuc::Ci, Nuc::Ci] => Some(53),
-        [Nuc::T, Nuc::C, Nuc::G]
-        | [Nuc::T, Nuc::C, Nuc::Gi]
-        | [Nuc::T, Nuc::Ci, Nuc::G]
-        | [Nuc::T, Nuc::Ci, Nuc::Gi]
-        | [Nuc::Ti, Nuc::C, Nuc::G]
-        | [Nuc::Ti, Nuc::C, Nuc::Gi]
-        | [Nuc::Ti, Nuc::Ci, Nuc::G]
-        | [Nuc::Ti, Nuc::Ci, Nuc::Gi] => Some(54),
-        [Nuc::T, Nuc::C, Nuc::T]
-        | [Nuc::T, Nuc::C, Nuc::Ti]
-        | [Nuc::T, Nuc::Ci, Nuc::T]
-        | [Nuc::T, Nuc::Ci, Nuc::Ti]
-        | [Nuc::Ti, Nuc::C, Nuc::T]
-        | [Nuc::Ti, Nuc::C, Nuc::Ti]
-        | [Nuc::Ti, Nuc::Ci, Nuc::T]
-        | [Nuc::Ti, Nuc::Ci, Nuc::Ti] => Some(55),
-        [Nuc::T, Nuc::G, Nuc::A]
-        | [Nuc::T, Nuc::G, Nuc::Ai]
-        | [Nuc::T, Nuc::Gi, Nuc::A]
-        | [Nuc::T, Nuc::Gi, Nuc::Ai]
-        | [Nuc::Ti, Nuc::G, Nuc::A]
-        | [Nuc::Ti, Nuc::G, Nuc::Ai]
-        | [Nuc::Ti, Nuc::Gi, Nuc::A]
-        | [Nuc::Ti, Nuc::Gi, Nuc::Ai] => Some(56),
-        [Nuc::T, Nuc::G, Nuc::C]
-        | [Nuc::T, Nuc::G, Nuc::Ci]
-        | [Nuc::T, Nuc::Gi, Nuc::C]
-        | [Nuc::T, Nuc::Gi, Nuc::Ci]
-        | [Nuc::Ti, Nuc::G, Nuc::C]
-        | [Nuc::Ti, Nuc::G, Nuc::Ci]
-        | [Nuc::Ti, Nuc::Gi, Nuc::C]
-        | [Nuc::Ti, Nuc::Gi, Nuc::Ci] => Some(57),
-        [Nuc::T, Nuc::G, Nuc::G]
-        | [Nuc::T, Nuc::G, Nuc::Gi]
-        | [Nuc::T, Nuc::Gi, Nuc::G]
-        | [Nuc::T, Nuc::Gi, Nuc::Gi]
-        | [Nuc::Ti, Nuc::G, Nuc::G]
-        | [Nuc::Ti, Nuc::G, Nuc::Gi]
-        | [Nuc::Ti, Nuc::Gi, Nuc::G]
-        | [Nuc::Ti, Nuc::Gi, Nuc::Gi] => Some(58),
-        [Nuc::T, Nuc::G, Nuc::T]
-        | [Nuc::T, Nuc::G, Nuc::Ti]
-        | [Nuc::T, Nuc::Gi, Nuc::T]
-        | [Nuc::T, Nuc::Gi, Nuc::Ti]
-        | [Nuc::Ti, Nuc::G, Nuc::T]
-        | [Nuc::Ti, Nuc::G, Nuc::Ti]
-        | [Nuc::Ti, Nuc::Gi, Nuc::T]
-        | [Nuc::Ti, Nuc::Gi, Nuc::Ti] => Some(59),
-        [Nuc::T, Nuc::T, Nuc::A]
-        | [Nuc::T, Nuc::T, Nuc::Ai]
-        | [Nuc::T, Nuc::Ti, Nuc::A]
-        | [Nuc::T, Nuc::Ti, Nuc::Ai]
-        | [Nuc::Ti, Nuc::T, Nuc::A]
-        | [Nuc::Ti, Nuc::T, Nuc::Ai]
-        | [Nuc::Ti, Nuc::Ti, Nuc::A]
-        | [Nuc::Ti, Nuc::Ti, Nuc::Ai] => Some(60),
-        [Nuc::T, Nuc::T, Nuc::C]
-        | [Nuc::T, Nuc::T, Nuc::Ci]
-        | [Nuc::T, Nuc::Ti, Nuc::C]
-        | [Nuc::T, Nuc::Ti, Nuc::Ci]
-        | [Nuc::Ti, Nuc::T, Nuc::C]
-        | [Nuc::Ti, Nuc::T, Nuc::Ci]
-        | [Nuc::Ti, Nuc::Ti, Nuc::C]
-        | [Nuc::Ti, Nuc::Ti, Nuc::Ci] => Some(61),
-        [Nuc::T, Nuc::T, Nuc::G]
-        | [Nuc::T, Nuc::T, Nuc::Gi]
-        | [Nuc::T, Nuc::Ti, Nuc::G]
-        | [Nuc::T, Nuc::Ti, Nuc::Gi]
-        | [Nuc::Ti, Nuc::T, Nuc::G]
-        | [Nuc::Ti, Nuc::T, Nuc::Gi]
-        | [Nuc::Ti, Nuc::Ti, Nuc::G]
-        | [Nuc::Ti, Nuc::Ti, Nuc::Gi] => Some(62),
-        [Nuc::T, Nuc::T, Nuc::T]
-        | [Nuc::T, Nuc::T, Nuc::Ti]
-        | [Nuc::T, Nuc::Ti, Nuc::T]
-        | [Nuc::T, Nuc::Ti, Nuc::Ti]
-        | [Nuc::Ti, Nuc::T, Nuc::T]
-        | [Nuc::Ti, Nuc::T, Nuc::Ti]
-        | [Nuc::Ti, Nuc::Ti, Nuc::T]
-        | [Nuc::Ti, Nuc::Ti, Nuc::Ti] => Some(63),
-        _ => None,
-    }
+    let s = n.get(0..3).unwrap();
+    let n0 = s[0].to_int()?;
+    let n1 = s[1].to_int()?;
+    let n2 = s[2].to_int()?;
+    Some(n0 * 16 + n1 * 4 + n2)
 }
 
 pub fn count_cg_content(seq: &[Nuc]) -> usize {
