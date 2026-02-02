@@ -27,15 +27,11 @@ pub fn forward(
     Vec<[f64; hmm::State::COUNT]>,
     Vec<[Option<hmm::State>; hmm::State::COUNT]>,
 ) {
-    let mut alpha: Vec<[f64; hmm::State::COUNT]> = Vec::with_capacity(seq.len());
-    let mut path: Vec<[Option<hmm::State>; hmm::State::COUNT]> = Vec::with_capacity(seq.len());
+    let mut alpha: Vec<[f64; hmm::State::COUNT]> = vec![[0.0; hmm::State::COUNT]; seq.len()];
+    let mut path: Vec<[Option<hmm::State>; hmm::State::COUNT]> =
+        vec![[Some(hmm::State::S); hmm::State::COUNT]; seq.len()];
     let mut temp_i: [usize; hmm::PERIOD] = [0; hmm::PERIOD];
     let mut temp_i_1: [usize; hmm::PERIOD] = [0; hmm::PERIOD];
-
-    for _ in 0..seq.len() {
-        alpha.push([0.0; hmm::State::COUNT]);
-        path.push([Some(hmm::State::S); hmm::State::COUNT]);
-    }
     alpha[0].copy_from_slice(&global.pi);
     for i in &mut alpha[0] {
         *i *= -1.0
