@@ -44,9 +44,14 @@ impl Nuc {
     #[inline]
     pub fn to_lower(&self) -> Nuc {
         let v = *self as u8;
-        // Set bit 0 to make it an insertion variant
-        // SAFETY: v | 1 is always a valid Nuc variant
-        unsafe { std::mem::transmute(v | 1) }
+        if v < 8 {
+            // Set bit 0 to make it an insertion variant
+            // SAFETY: v | 1 for v in 0..8 is always in 0..8 (valid Nuc)
+            unsafe { std::mem::transmute(v | 1) }
+        } else {
+            // N, Ni, Xi stay the same (Xi | 1 = 11 which is invalid)
+            *self
+        }
     }
 
     /// Check if this is an insertion (lowercase) variant
