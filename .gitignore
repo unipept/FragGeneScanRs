@@ -6,3 +6,5 @@ prodigal
 *.faa
 *.gff
 *.csv
+*.out
+/baseline
