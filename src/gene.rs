@@ -1,6 +1,7 @@
 extern crate thiserror;
 use thiserror::Error;
 
+use std::io::Write;
 use crate::dna::Nuc::{A, C, G, T};
 use crate::dna::{trinucleotide, Nuc, ANTI_CODON_CODE, CODON_CODE};
 
@@ -40,7 +41,7 @@ impl ReadPrediction {
 
     pub fn meta(&self, buf: &mut Vec<u8>) -> Result<(), GeneError> {
         if !self.genes.is_empty() {
-            buf.append(&mut format!(">{}\n", std::str::from_utf8(&self.head)?).into_bytes())
+            write!(buf, ">{}\n", std::str::from_utf8(&self.head)?).unwrap();
         }
         for gene in &self.genes {
             gene.meta(buf);
@@ -87,43 +88,41 @@ pub struct Gene {
 
 impl Gene {
     pub fn meta(&self, buf: &mut Vec<u8>) {
-        buf.append(
-            &mut format!(
-                "{}\t{}\t{}\t{}\t{:.6}\tI:{}\tD:{}\n",
-                self.start,
-                self.end,
-                if self.forward_strand { '+' } else { '-' },
-                self.frame,
-                self.score,
-                self.inserted
-                    .iter()
-                    .map(|i: &usize| { format!("{},", i) })
-                    .collect::<String>(),
-                self.deleted
-                    .iter()
-                    .map(|i: &usize| { format!("{},", i) })
-                    .collect::<String>()
-            )
-            .into_bytes(),
-        );
+        write!(
+            buf,
+            "{}\t{}\t{}\t{}\t{:.6}\tI:{}\tD:{}\n",
+            self.start,
+            self.end,
+            if self.forward_strand { '+' } else { '-' },
+            self.frame,
+            self.score,
+            self.inserted
+                .iter()
+                .map(|i: &usize| { format!("{},", i) })
+                .collect::<String>(),
+            self.deleted
+                .iter()
+                .map(|i: &usize| { format!("{},", i) })
+                .collect::<String>()
+        )
+        .unwrap();
     }
 
     pub fn gff(&self, buf: &mut Vec<u8>, head: &str) {
-        buf.append(
-            &mut format!(
-                "{}\tFGS\tCDS\t{}\t{}\t.\t{}\t{}\tID={}_{}_{}_{};product=predicted protein\n",
-                head,
-                self.start,
-                self.end,
-                if self.forward_strand { '+' } else { '-' },
-                self.frame - 1,
-                head,
-                self.start,
-                self.end,
-                if self.forward_strand { '+' } else { '-' }
-            )
-            .into_bytes(),
-        );
+        write!(
+            buf,
+            "{}\tFGS\tCDS\t{}\t{}\t.\t{}\t{}\tID={}_{}_{}_{};product=predicted protein\n",
+            head,
+            self.start,
+            self.end,
+            if self.forward_strand { '+' } else { '-' },
+            self.frame - 1,
+            head,
+            self.start,
+            self.end,
+            if self.forward_strand { '+' } else { '-' }
+        )
+        .unwrap();
     }
 
     pub fn dna(&self, buf: &mut Vec<u8>, head: &Vec<u8>, formatted: bool) -> Result<(), GeneError> {
@@ -145,17 +144,16 @@ impl Gene {
                 .collect(),
         };
 
-        buf.append(
-            &mut format!(
-                ">{}_{}_{}_{}\n{}\n",
-                std::str::from_utf8(head)?,
-                self.start,
-                self.end,
-                if self.forward_strand { '+' } else { '-' },
-                std::str::from_utf8(&dna)?,
-            )
-            .into_bytes(),
-        );
+        write!(
+            buf,
+            ">{}_{}_{}_{}\n{}\n",
+            std::str::from_utf8(head)?,
+            self.start,
+            self.end,
+            if self.forward_strand { '+' } else { '-' },
+            std::str::from_utf8(&dna)?,
+        )
+        .unwrap();
 
         Ok(())
     }
@@ -202,17 +200,16 @@ impl Gene {
             }
         }
 
-        buf.append(
-            &mut format!(
-                ">{}_{}_{}_{}\n{}\n",
-                std::str::from_utf8(head)?,
-                self.start,
-                self.end,
-                if self.forward_strand { '+' } else { '-' },
-                std::str::from_utf8(&protein)?,
-            )
-            .into_bytes(),
-        );
+        write!(
+            buf,
+            ">{}_{}_{}_{}\n{}\n",
+            std::str::from_utf8(head)?,
+            self.start,
+            self.end,
+            if self.forward_strand { '+' } else { '-' },
+            std::str::from_utf8(&protein)?,
+        )
+        .unwrap();
         Ok(())
     }
 }
