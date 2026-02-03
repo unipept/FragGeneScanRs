@@ -84,12 +84,32 @@ pub struct Transition {
 pub const PERIOD: usize = 6;
 const WINDOW: usize = 61;
 
-#[derive(Default)]
 pub struct Global {
     pub pi: [f64; State::COUNT],
     pub tr: Transition,
     pub tr_ii: [[f64; ACGT]; ACGT],
     pub tr_mi: [[f64; ACGT]; ACGT],
+
+    // Precomputed penalties
+    pub ln_0_25: f64,
+    pub ln_0_95: f64,
+    // Precomputed costs for deletions of length 2..=6
+    // Index 0 unused, Index 2 = delete 2, etc.
+    pub d_penalties: [f64; 7],
+}
+
+impl Default for Global {
+    fn default() -> Self {
+        Self {
+            pi: [0.0; State::COUNT],
+            tr: Default::default(),
+            tr_ii: [[0.0; ACGT]; ACGT],
+            tr_mi: [[0.0; ACGT]; ACGT],
+            ln_0_25: 0.25f64.ln(),
+            ln_0_95: 0.95f64.ln(),
+            d_penalties: [0.0; 7],
+        }
+    }
 }
 
 pub struct Local {
@@ -274,7 +294,24 @@ fn read_transitions(global: &mut Global, filename: PathBuf) -> Result<(), Traini
             parse_float_col(&filename, &header, next_line(&filename, &mut lines)?, 1)?.ln();
     }
 
+    precompute_penalties(global);
+
     Ok(())
+}
+
+fn precompute_penalties(global: &mut Global) {
+    global.ln_0_25 = 0.25f64.ln();
+    global.ln_0_95 = 0.95f64.ln();
+
+    // The formula from viterbi:
+    // global.tr.md + (0.25_ln * (d-1)) + (global.tr.dd * (d-2)) + global.tr.dm
+    // Note: In viterbi these are subtracted, so we sum them here to subtract "one big number" later.
+    for d in 2..=6 {
+        global.d_penalties[d] = global.tr.md
+            + (global.ln_0_25 * (d as f64 - 1.0))
+            + (global.tr.dd * (d as f64 - 2.0))
+            + global.tr.dm;
+    }
 }
 
 fn read_m_transitions(locals: &mut Vec<Local>, filename: PathBuf) -> Result<(), TrainingDataError> {
